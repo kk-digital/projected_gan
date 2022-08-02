@@ -233,6 +233,8 @@ class ImageFolderDataset(Dataset):
         if image.ndim == 2:
             image = image[:, :, np.newaxis] # HW => HWC
         image = image.transpose(2, 0, 1) # HWC => CHW
+        if image.shape[0] == 1:  # grayscale to RGB
+            image = np.tile(image, (3, 1, 1))
         return image
 
     def _load_raw_labels(self):
