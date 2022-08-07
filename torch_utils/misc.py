@@ -270,3 +270,12 @@ import os
 
 def get_ckpt_path(run_dir):
     return os.path.join(run_dir, f'network-snapshot.pkl')
+
+
+import torch.nn as nn
+
+def count_of_parameters(module: nn.Module):
+    count = 0
+    for parameters in module.parameters():
+        count = count + parameters.numel()
+    return count
