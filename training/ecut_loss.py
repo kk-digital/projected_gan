@@ -16,6 +16,7 @@ from torch_utils import training_stats
 from torch_utils.ops import upfirdn2d
 from models import losses
 from models.patchnce import PatchNCELoss
+from torch.nn.parameter import Parameter
 
 
 class Loss:
@@ -26,6 +27,7 @@ class Loss:
 class ECUTLoss(Loss):
     def __init__(self, device, G, D, F, G_ema, resolution: int,
                  nce_layers: list, feature_net: str, nce_idt: bool, num_patches: int,
+                 adaptive_loss: bool,
                  lambda_GAN: float=1.0, lambda_NCE: float=1.0, lambda_identity: float = 0,
                  blur_init_sigma=0, blur_fade_kimg=0, **kwargs):
         super().__init__()
@@ -42,6 +44,7 @@ class ECUTLoss(Loss):
         self.lambda_identity = lambda_identity
         self.blur_init_sigma = blur_init_sigma
         self.blur_fade_kimg = blur_fade_kimg
+        self.adaptive_loss = adaptive_loss
         self.criterionIdt = torch.nn.MSELoss()
 
         if feature_net == 'efficientnet_lite':
@@ -74,6 +77,10 @@ class ECUTLoss(Loss):
         if isinstance(feat, tuple):
             feat = feat[1]
         self.F.create_mlp(feat)
+        if self.adaptive_loss:
+            loss_weights = Parameter(torch.Tensor(len(feat)))
+            loss_weights.data.fill_(1 / len(feat))
+            self.F.loss_weights = loss_weights
 
     def calculate_NCE_loss(self, feat_net: torch.nn.Module, src, tgt):
         n_layers = len(self.nce_layers)
@@ -88,11 +95,19 @@ class ECUTLoss(Loss):
         feat_q_pool, _ = self.F(feat_q, self.num_patches, sample_ids)
 
         total_nce_loss = 0.0
-        for f_q, f_k, crit, nce_layer in zip(feat_q_pool, feat_k_pool, self.criterionNCE, self.nce_layers):
+        if self.adaptive_loss:
+            loss_weights = self.F.loss_weights
+            posw = torch.abs(loss_weights)
+            weights = posw / torch.sum(posw) + (1 / (5 * len(self.nce_layers)))
+            weights = weights / torch.sum(weights)
+        else:
+            weights = [ 1 / n_layers for i in range(0, n_layers) ]
+
+        for f_q, f_k, crit, weight, _ in zip(feat_q_pool, feat_k_pool, self.criterionNCE, weights, self.nce_layers):
             loss = crit(f_q, f_k)
-            total_nce_loss += loss.mean()
+            total_nce_loss += loss.mean() * weight
         
-        return total_nce_loss / n_layers
+        return total_nce_loss
 
     def run_G(self, real, update_emas=False):
         fake = self.G(real)

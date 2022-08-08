@@ -38,34 +38,62 @@ from i2imetrics.all_score import calculate_scores_given_paths
 
 #----------------------------------------------------------------------------
 
-def setup_snapshot_image_grid(training_set, random_seed=0):
+def setup_snapshot_image_grid(eval_set, random_seed=0):
     rnd = np.random.RandomState(random_seed)
-    gw = np.clip(7680 // training_set.resolution, 7, 32)
-    gh = np.clip(4320 // training_set.resolution, 4, 32)
+    gw = np.clip(7680 // eval_set.resolution, 7, 32)
+    gh = np.clip(4320 // eval_set.resolution, 4, 32)
+    gh //= 2
 
-    # No labels => show random subset of training samples.
     if True:
-        all_indices = list(range(len(training_set)))
+        if len(eval_set) < gw * gh:
+            distance = gw * gh
+            cw, ch = gw, gh
+            for h in range(4, 17):
+                for w in range(max(7, h*2), min(33, h*4+1)):
+                    if w * h >= len(eval_set) and (w * h - len(eval_set)) < distance:
+                        distance = w * h - len(eval_set)
+                        cw, ch = w, h
+            gw, gh = cw, ch
+
+        all_indices = list(range(len(eval_set)))
         rnd.shuffle(all_indices)
         grid_indices = [all_indices[i % len(all_indices)] for i in range(gw * gh)]
 
     # Load data.
-    imagesB, imagesA = zip(*[(training_set[i]['B'], training_set[i]['A']) for i in grid_indices])
+    imagesB, imagesA = zip(*[(eval_set[i]['B'], eval_set[i]['A']) for i in grid_indices])
     return (gw, gh), np.stack(imagesB), np.stack(imagesA)
 
 #----------------------------------------------------------------------------
 
-def save_image_grid(img, fname, drange, grid_size):
+def save_image_grid(imgA, imgB, fname, drange, grid_size):
+    assert imgA.shape == imgB.shape
+
     lo, hi = drange
-    img = np.asarray(img, dtype=np.float32)
-    img = (img - lo) * (255 / (hi - lo))
-    img = np.rint(img).clip(0, 255).astype(np.uint8)
+    imgA = np.asarray(imgA, dtype=np.float32)
+    imgA = (imgA - lo) * (255 / (hi - lo))
+    imgA = np.rint(imgA).clip(0, 255).astype(np.uint8)
+    imgB = np.asarray(imgB, dtype=np.float32)
+    imgB = (imgB - lo) * (255 / (hi - lo))
+    imgB = np.rint(imgB).clip(0, 255).astype(np.uint8)
 
     gw, gh = grid_size
-    _N, C, H, W = img.shape
-    img = img.reshape([gh, gw, C, H, W])
-    img = img.transpose(0, 3, 1, 4, 2)
-    img = img.reshape([gh * H, gw * W, C])
+    N, C, H, W = imgA.shape
+    assert gw * gh >= N
+    if N < gw * gh:
+        imgA = np.concatenate([imgA, np.zeros((gw*gh-N, C, H, W), dtype=np.uint8)], axis=0)
+        imgB = np.concatenate([imgB, np.zeros((gw*gh-N, C, H, W), dtype=np.uint8)], axis=0)
+
+    imgA = imgA.reshape([gh, gw, C, H, W])
+    imgA = imgA.transpose(0, 3, 1, 4, 2)
+    imgA = imgA.reshape([gh * H, gw * W, C])
+    imgB = imgB.reshape([gh, gw, C, H, W])
+    imgB = imgB.transpose(0, 3, 1, 4, 2)
+    imgB = imgB.reshape([gh * H, gw * W, C])
+
+    img = np.zeros((2 * gh * H, gw * W, C), dtype=np.uint8)
+    for i in range(gh):
+        img[2*i*H:(2*i+1)*H] = imgA[i*H:(i+1)*H]
+        img[(2*i+1)*H:(2*i+2)*H] = imgB[i*H:(i+1)*H]
 
     assert C in [1, 3]
     if C == 1:
@@ -242,16 +270,17 @@ def training_loop(
 
     # Export sample images.
     grid_size = None
-    imagesA = None
+    imagesA, imagesB = None, None
     if rank == 0:
         print('Exporting sample images...')
-        grid_size, imagesB, imagesA = setup_snapshot_image_grid(training_set=training_set)
-        save_image_grid(imagesB, os.path.join(run_dir, 'reals.png'), drange=[-1,1], grid_size=grid_size)
+        grid_size, imagesB, imagesA = setup_snapshot_image_grid(eval_set=eval_set)
+        save_image_grid(imagesA, imagesB, os.path.join(run_dir, 'reals.png'), drange=[-1,1], grid_size=grid_size)
 
-        imagesA = torch.from_numpy(imagesA).to(device).split(batch_gpu)
-        images = torch.cat([G_ema(img).cpu() for img in imagesA]).numpy()
+        images_A = torch.from_numpy(imagesA).to(device).split(batch_gpu)
+        images = torch.cat([G_ema(img).cpu() for img in images_A]).numpy()
 
-        save_image_grid(images, os.path.join(run_dir, 'fakes_init.png'), drange=[-1,1], grid_size=grid_size)
+        save_image_grid(imagesA, images, os.path.join(run_dir, 'fakes_init.png'), drange=[-1,1], grid_size=grid_size)
+        del images_A
 
     # Initialize logs.
     if rank == 0:
@@ -395,12 +424,16 @@ def training_loop(
 
         # Save image snapshot.
         if (rank == 0) and (image_snapshot_ticks is not None) and (done or cur_tick % image_snapshot_ticks == 0):
-            images = torch.cat([G_ema(img).cpu() for img in imagesA]).numpy()
+            images_A = torch.from_numpy(imagesA).to(device).split(batch_gpu)
+            images = torch.cat([G_ema(img).cpu() for img in images_A]).numpy()
             img_path = os.path.join(run_dir, f'fakes{cur_nimg//1000:06d}.png')
             buf = io.BytesIO()
-            save_image_grid(images, buf, drange=[-1,1], grid_size=grid_size)
+            save_image_grid(imagesA, images, buf, drange=[-1,1], grid_size=grid_size)
             with io.open(img_path, 'wb') as f:
                 f.write(buf.getvalue())
+            if logger is not None:
+                logger.sendBlobFile(buf, os.path.basename(img_path), f"/validation_images/{desc}/{os.path.basename(img_path)}", f"{desc}/validationImage")
+            del images_A
 
         # Save network snapshot.
         snapshot_pkl = None
@@ -467,6 +500,7 @@ def training_loop(
             training_stats.report0('Timing/' + phase.name, value)
         stats_collector.update()
         stats_dict = stats_collector.as_dict()
+        training_stats.reset()
 
         # Update logs.
         timestamp = time.time()

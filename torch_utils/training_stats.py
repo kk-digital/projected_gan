@@ -26,6 +26,7 @@ _counter_dtype  = torch.float64 # Data type to use for the internal counters.
 _rank           = 0             # Rank of the current process.
 _sync_device    = None          # Device to use for multiprocess communication. None = single-process.
 _sync_called    = False         # Has _sync() been called yet?
+_names          = set()
 _counters       = dict()        # Running counters on each device, updated by report(): name => device => torch.Tensor
 _cumulative     = dict()        # Cumulative counters on the CPU, updated by _sync(): name => torch.Tensor
 
@@ -82,6 +83,7 @@ def report(name, value):
     elems = torch.as_tensor(value)
     if elems.numel() == 0:
         return value
+    _names.add(name)
 
     elems = elems.detach().flatten().to(_reduce_dtype)
     moments = torch.stack([
@@ -107,6 +109,11 @@ def report0(name, value):
     """
     report(name, value if _rank == 0 else [])
     return value
+
+#----------------------------------------------------------------------------
+
+def reset():
+    _names.clear()
 
 #----------------------------------------------------------------------------
 
@@ -142,7 +149,7 @@ class Collector:
         r"""Returns the names of all statistics broadcasted so far that
         match the regular expression specified at construction time.
         """
-        return [name for name in _counters if self._regex.fullmatch(name)]
+        return [name for name in _names if self._regex.fullmatch(name)]
 
     def update(self):
         r"""Copies current values of the internal counters to the

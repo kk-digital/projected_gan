@@ -127,13 +127,14 @@ def parse_comma_separated_list(s):
 # PatchNCE
 @click.option('--nce_layers',       help='image preprocess',          type=str,        default=None,                 show_default=True)
 @click.option('--feature_net',      help='nce feature extraction network',          type=click.Choice(['efficientnet_lite', 'vgg16', 'learned']), default='vgg16',                 show_default=True)
-@click.option('--nce_idt',          help='random flip dataset image', metavar='INT',   type=bool,                  default=False, show_default=True)
+@click.option('--nce_idt',          help='random flip dataset image', is_flag=True)
+@click.option('--nce_adaptive',     help='patchnce adaptive', is_flag=True)
 @click.option('--num_patches',      help='number of negative patches',           metavar='INT',   type=click.IntRange(min=1), default=256)
 
 # loss weight
 @click.option('--lambda_GAN',         type=float,                   default=1.0, show_default=True)
 @click.option('--lambda_NCE',         type=float,                   default=1.0, show_default=True)
-@click.option('--lambda_identity',         type=float,                   default=0.0, show_default=True)
+@click.option('--lambda_identity',    type=float,                   default=0.0, show_default=True)
 
 # dataset
 @click.option('--dataroot',         help='Training data',             metavar='[DIR]', type=str,                   required=True)
@@ -257,14 +258,15 @@ def main(**kwargs):
     c.loss_kwargs = dnnlib.EasyDict(class_name=opts.train_loss)
     if opts.nce_layers is None:
         if opts.feature_net == 'efficientnet_lite':
-            opts.nce_layers = '2,4,6'
+            opts.nce_layers = '1,2,3,4,5,6' if opts.nce_adaptive else '2,4,6'
         elif opts.feature_net == 'vgg16':
-            opts.nce_layers = '4,7,9'
+            opts.nce_layers = '1,2,3,4,5,6,7,8,9,10' if opts.nce_adaptive else '4,7,9'
         elif opts.feature_net == 'learned':
-            opts.nce_layers = '0,4,8,12,16'
+            opts.nce_layers = '0,2,4,6,8,9,10,12,14,16' if opts.nce_adaptive else  '0,4,8,12,16'
     c.loss_kwargs.nce_layers = [ int(val) for val in opts.nce_layers.split(',') ]
     c.loss_kwargs.feature_net = opts.feature_net
     c.loss_kwargs.nce_idt = opts.nce_idt
+    c.loss_kwargs.adaptive_loss = opts.nce_adaptive
     c.loss_kwargs.num_patches = opts.num_patches
     c.loss_kwargs.lambda_GAN = opts.lambda_gan
     c.loss_kwargs.lambda_NCE = opts.lambda_nce
