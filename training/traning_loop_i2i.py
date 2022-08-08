@@ -140,6 +140,7 @@ def training_loop(
     abort_fn                = None,     # Callback function for determining whether to abort training. Must return consistent results across ranks.
     progress_fn             = None,     # Callback function for updating training progress. Called for all ranks.
     restart_every           = -1,       # Time interval in seconds to exit code
+    desc: str = '',
     logger: TdLogger = None,
 ):
     # Initialize.
@@ -165,7 +166,7 @@ def training_loop(
     eval_set_kwargs = dnnlib.EasyDict(**training_set_kwargs)
     eval_set_kwargs.phase = 'test'
     eval_set_kwargs.serial_batches = True
-    eval_set_kwargs.preprocess = ''
+    eval_set_kwargs.preprocess = 'resize'
     eval_set = dnnlib.util.construct_class_by_name(**eval_set_kwargs) # subclass of training.dataset.Dataset
     training_set = dnnlib.util.construct_class_by_name(**training_set_kwargs) # subclass of training.dataset.Dataset
     training_set_sampler = misc.InfiniteSampler(dataset=training_set, rank=rank, num_replicas=num_gpus, seed=random_seed)
@@ -438,7 +439,8 @@ def training_loop(
             _, kid, fid_val = result[0]
             kid_val, _ = kid
             if rank == 0:
-                logger.send({'FID': fid_val, 'KID': kid_val, 'kimg': (cur_nimg//1000)}, group='metrics', direct=True)
+                training_stats.report('Metrics/FID', fid_val)
+                training_stats.report('Metrics/KID', kid_val)
 
             # save best fid ckpt
             snapshot_pkl = os.path.join(run_dir, f'best_model.pkl')
@@ -480,6 +482,18 @@ def training_loop(
             for name, value in stats_metrics.items():
                 stats_tfevents.add_scalar(f'Metrics/{name}', value, global_step=global_step, walltime=walltime)
             stats_tfevents.flush()
+        if logger is not None:
+            keys = list(stats_dict.keys())
+            tables = set(map(lambda key: key.split('/')[0], keys))
+            for tbl in tables:
+                data = {}
+                match_keys = [ k for k in keys if k.startswith(tbl + '/') ]
+                for mk in match_keys:
+                    key = mk[len(tbl)+1:]
+                    val = stats_dict[mk].mean
+                    data[key] = val
+                logger.send(data, group=f'{desc}/{tbl}')
+            logger.flush()
         if progress_fn is not None:
             progress_fn(cur_nimg // 1000, total_kimg)
 

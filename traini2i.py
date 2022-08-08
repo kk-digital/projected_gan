@@ -91,8 +91,9 @@ def launch_training(c, exconf, desc, outdir, dry_run):
     os.makedirs(c.run_dir, exist_ok=c.restart_every > 0)
     with open(os.path.join(c.run_dir, 'training_options.json'), 'wt+') as f:
         json.dump(c, f, indent=2)
-    logger.send(json.dumps(c, indent=2), "training options", direct=True)
+    logger.send(json.dumps(c, indent=2), desc + "/training options", direct=True)
     c.logger = logger
+    c.desc = desc
 
     # Launch processes.
     print('Launching processes...')
@@ -137,7 +138,7 @@ def parse_comma_separated_list(s):
 # dataset
 @click.option('--dataroot',         help='Training data',             metavar='[DIR]', type=str,                   required=True)
 @click.option('--batch',            help='Total batch size',          metavar='INT',   type=click.IntRange(min=1), required=True)
-@click.option('--preprocess',       help='image preprocess',          type=str,        default='',                 show_default=True)
+@click.option('--preprocess',       help='image preprocess',          type=str,        default='resize',           show_default=True)
 @click.option('--load_size',        help='image load size',           metavar='INT',   type=click.IntRange(min=1), default=256)
 @click.option('--crop_size',        help='image size',                metavar='INT',   type=click.IntRange(min=1), default=256)
 @click.option('--flip',             help='random flip dataset image', metavar='INT',   type=bool,                  default=False, show_default=True)
@@ -146,7 +147,7 @@ def parse_comma_separated_list(s):
 
 # logger
 @click.option('--logger_endpoint',  help='logger endpoint',                                           type=str , default="http://192.168.44.43:5445")
-@click.option('--logger_queuesize', help='logger message queue size, for reducing request frequency', type=click.IntRange(min=1) , default=4000)
+@click.option('--logger_queuesize', help='logger message queue size, for reducing request frequency', type=click.IntRange(min=1) , default=10)
 @click.option('--logger_prefix',    help='logger group prefix',                                       type=str,  default="", show_default=True)
 @click.option('--logger_priority',  help='enable logger message priority',                            type=bool, default=False, show_default=True)
 @click.option('--disable_logger',   help='logger endpoint',                                           type=bool, default=False, show_default=True)
