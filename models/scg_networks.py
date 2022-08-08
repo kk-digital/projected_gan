@@ -63,7 +63,7 @@ class Generator(nn.Module):
 
 
 class FGGenerator(nn.Module):
-    def __init__(self, ngf=128, img_resolution=256, nc=3, lite=False):
+    def __init__(self, ngf=128, img_resolution=256, nc=3, lite=False, **kwargs):
         super().__init__()
         self.img_resolution = img_resolution
         nfc_multi = {2: 16, 4:16, 8:8, 16:4, 32:2, 64:2, 128:1, 256:0.5,
