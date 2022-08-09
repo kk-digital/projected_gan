@@ -1,9 +1,10 @@
-from audioop import reverse
 import torch
 from torch import nn, einsum
+from pg_modules.blocks import conv2d, convTranspose2d
 import torch.nn.functional as F
+from torch.nn.utils import spectral_norm
 
-from einops import rearrange, repeat
+from einops import rearrange
 from einops.layers.torch import Rearrange
 
 # helper methods
@@ -48,10 +49,10 @@ class FeedForward(nn.Module):
     def __init__(self, dim, mult = 4, dropout = 0.):
         super().__init__()
         self.net = nn.Sequential(
-            nn.Conv2d(dim, dim * mult, 1),
+            conv2d(dim, dim * mult, 1),
             nn.GELU(),
             nn.Dropout(dropout),
-            nn.Conv2d(dim * mult, dim, 1),
+            conv2d(dim * mult, dim, 1),
             nn.Dropout(dropout)
         )
     def forward(self, x):
@@ -61,9 +62,9 @@ class DepthWiseConv2d(nn.Module):
     def __init__(self, dim_in, dim_out, kernel_size, padding, stride, bias = True):
         super().__init__()
         self.net = nn.Sequential(
-            nn.Conv2d(dim_in, dim_in, kernel_size = kernel_size, padding = padding, groups = dim_in, stride = stride, bias = bias),
+            conv2d(dim_in, dim_in, kernel_size = kernel_size, padding = padding, groups = dim_in, stride = stride, bias = bias),
             nn.BatchNorm2d(dim_in),
-            nn.Conv2d(dim_in, dim_out, kernel_size = 1, bias = bias)
+            conv2d(dim_in, dim_out, kernel_size = 1, bias = bias)
         )
     def forward(self, x):
         return self.net(x)
@@ -83,7 +84,7 @@ class Attention(nn.Module):
         self.to_kv = DepthWiseConv2d(dim, inner_dim * 2, proj_kernel, padding = padding, stride = kv_proj_stride, bias = False)
 
         self.to_out = nn.Sequential(
-            nn.Conv2d(inner_dim, dim, 1),
+            conv2d(inner_dim, dim, 1),
             nn.Dropout(dropout)
         )
 
@@ -158,7 +159,7 @@ class CvT(nn.Module):
             config, kwargs = group_by_key_prefix_and_remove_prefix(f'{prefix}_', kwargs)
 
             layers.append(nn.Sequential(
-                nn.Conv2d(dim, config['emb_dim'], kernel_size = config['emb_kernel'], padding = (config['emb_kernel'] // 2), stride = config['emb_stride']),
+                conv2d(dim, config['emb_dim'], kernel_size = config['emb_kernel'], padding = (config['emb_kernel'] // 2), stride = config['emb_stride']),
                 LayerNorm(config['emb_dim']),
                 Transformer(dim = config['emb_dim'], proj_kernel = config['proj_kernel'], kv_proj_stride = config['kv_proj_stride'], depth = config['depth'], heads = config['heads'], mlp_mult = config['mlp_mult'], dropout = dropout)
             ))
@@ -170,7 +171,7 @@ class CvT(nn.Module):
         self.to_logits = nn.Sequential(
             nn.AdaptiveAvgPool2d(1),
             Rearrange('... () () -> ...'),
-            nn.Linear(dim, num_classes)
+            spectral_norm(nn.Linear(dim, num_classes))
         )
 
     def forward(self, x):
@@ -204,9 +205,10 @@ class CvTGenerator(nn.Module):
         s3_proj_kernel = 3,
         s3_kv_proj_stride = 2,
         s3_heads = 6,
-        s3_depth = 3,
+        s3_depth = 4,
         s3_mlp_mult = 4,
-        dropout = 0.
+        dropout = 0.,
+        **kwargs
     ):
         super().__init__()
         kwargs = dict(locals())
@@ -219,7 +221,7 @@ class CvTGenerator(nn.Module):
             config, kwargs = group_by_key_prefix_and_remove_prefix(f'{prefix}_', kwargs)
 
             layers += [
-                nn.Conv2d(dim, config['emb_dim'], kernel_size = config['emb_kernel'], padding = (config['emb_kernel'] // 2), stride = config['emb_stride']),
+                conv2d(dim, config['emb_dim'], kernel_size = config['emb_kernel'], padding = (config['emb_kernel'] // 2), stride = config['emb_stride']),
                 LayerNorm(config['emb_dim']),
                 Transformer(dim = config['emb_dim'], proj_kernel = config['proj_kernel'], kv_proj_stride = config['kv_proj_stride'], depth = config['depth'], heads = config['heads'], mlp_mult = config['mlp_mult'], dropout = dropout)
             ]
@@ -227,20 +229,20 @@ class CvTGenerator(nn.Module):
             reverse_layers = [
                 Transformer(dim = config['emb_dim'], proj_kernel = config['proj_kernel'], kv_proj_stride = config['kv_proj_stride'], depth = config['depth'], heads = config['heads'], mlp_mult = config['mlp_mult'], dropout = dropout),
                 LayerNorm(config['emb_dim']),
-                nn.ConvTranspose2d(config['emb_dim'], dim, kernel_size=config['emb_kernel'], padding=(config['emb_kernel'] // 2), output_padding=(config['emb_kernel'] // 2), stride=config['emb_stride'])
+                convTranspose2d(config['emb_dim'], dim, kernel_size=config['emb_kernel'], padding=(config['emb_kernel'] // 2), output_padding=(config['emb_kernel'] // 2), stride=config['emb_stride'])
             ] + reverse_layers
 
             dim = config['emb_dim']
 
         output_layers = [nn.ReflectionPad2d(3),
-                         nn.Conv2d(3, 3, kernel_size=7, padding=0),
+                         conv2d(3, 3, kernel_size=7, padding=0),
                          nn.Tanh()]
 
         self.layers = nn.Sequential(*(layers + reverse_layers + output_layers))
 
     def forward(self, x, layers=[], encode_only=False):
         if len(layers) == 0:
-            return self.layers(x), None
+            return self.layers(x)
         
         features = []
         feat = x
@@ -278,7 +280,8 @@ class CvTDiscriminator(nn.Module):
         s3_kv_proj_stride = 2,
         s3_heads = 6,
         s3_depth = 4,
-        s3_mlp_mult = 4):
+        s3_mlp_mult = 4,
+        **kwargs):
         super().__init__()
         self.cvt = CvT(num_classes=1,
             s1_emb_dim = s1_emb_dim,
