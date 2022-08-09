@@ -8,6 +8,7 @@
 #
 # modified by Axel Sauer for "Projected GANs Converge Faster"
 #
+from hashlib import md5
 import os
 import click
 import re
@@ -250,7 +251,10 @@ def main(**kwargs):
         c.cudnn_benchmark = False
 
     # Description string.
-    desc = f'{opts.name}-{c.training_set_kwargs.dataname:s}-gpus{c.num_gpus:d}-batch{c.batch_size:d}'
+    confjsonstr = json.dumps(opts, indent=2)
+    conf_digest = md5(bytes(confjsonstr, 'utf8')).digest().hex()
+    conf_digest = conf_digest[:6]
+    desc = f'{opts.name}-{conf_digest}-{c.training_set_kwargs.dataname:s}-gpus{c.num_gpus:d}-batch{c.batch_size:d}'
     if opts.desc is not None:
         desc += f'-{opts.desc}'
 
