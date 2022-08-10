@@ -126,15 +126,21 @@ def parse_comma_separated_list(s):
 @click.option('--train_loss',   help='train loss', type=str, default='training.ecut_loss.ECUTLoss', show_default=True)
 
 # PatchNCE
-@click.option('--nce_layers',       help='image preprocess',          type=str,        default=None,                 show_default=True)
+@click.option('--nce_layers',       help='feature layers',          type=str,        default=None,                 show_default=True)
 @click.option('--feature_net',      help='nce feature extraction network',          type=click.Choice(['efficientnet_lite', 'vgg16', 'learned']), default='vgg16',                 show_default=True)
-@click.option('--nce_idt',          help='random flip dataset image', is_flag=True)
+@click.option('--nce_idt',          help='identity', is_flag=True)
 @click.option('--nce_adaptive',     help='patchnce adaptive', is_flag=True)
 @click.option('--num_patches',      help='number of negative patches',           metavar='INT',   type=click.IntRange(min=1), default=256)
+
+# Spatial-Correlative
+@click.option('--sc_layers',       help='feature layers',          type=str,        default=None,                 show_default=True)
+@click.option('--patch_size',      help='patch size',           metavar='INT',   type=click.IntRange(min=16), default=32)
+@click.option('--sc_idt',          help='identity', is_flag=True)
 
 # loss weight
 @click.option('--lambda_GAN',         type=float,                   default=1.0, show_default=True)
 @click.option('--lambda_NCE',         type=float,                   default=1.0, show_default=True)
+@click.option('--lambda_SC',          type=float,                   default=1.0, show_default=True)
 @click.option('--lambda_identity',    type=float,                   default=0.0, show_default=True)
 
 # dataset
@@ -267,13 +273,19 @@ def main(**kwargs):
             opts.nce_layers = '1,2,3,4,5,6,7,8,9,10' if opts.nce_adaptive else '4,7,9'
         elif opts.feature_net == 'learned':
             opts.nce_layers = '0,2,4,6,8,9,10,12,14,16' if opts.nce_adaptive else  '0,4,8,12,16'
+    if opts.sc_layers is None:
+        opts.sc_layers = opts.nce_layers
     c.loss_kwargs.nce_layers = [ int(val) for val in opts.nce_layers.split(',') ]
+    c.loss_kwargs.sc_layers = [ int(val) for val in opts.sc_layers.split(',') ]
     c.loss_kwargs.feature_net = opts.feature_net
     c.loss_kwargs.nce_idt = opts.nce_idt
+    c.loss_kwargs.sc_idt = opts.sc_idt
     c.loss_kwargs.adaptive_loss = opts.nce_adaptive
     c.loss_kwargs.num_patches = opts.num_patches
+    c.loss_kwargs.patch_size = opts.patch_size
     c.loss_kwargs.lambda_GAN = opts.lambda_gan
     c.loss_kwargs.lambda_NCE = opts.lambda_nce
+    c.loss_kwargs.lambda_SC = opts.lambda_sc
     c.loss_kwargs.lambda_identity = opts.lambda_identity
 
     c.D_kwargs = dnnlib.EasyDict(
