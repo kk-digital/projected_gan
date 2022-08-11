@@ -137,11 +137,16 @@ def parse_comma_separated_list(s):
 @click.option('--patch_size',      help='patch size',           metavar='INT',   type=click.IntRange(min=16), default=32)
 @click.option('--sc_idt',          help='identity', is_flag=True)
 
+# Transtyle
+@click.option('--style_extractor',      help='image global style extractor',          type=click.Choice(['vit', 'cvt', 'arc']), default='vit',                 show_default=True)
+@click.option('--arc_path',             help='arcface pretrained model path',         type=str, default=None, show_default=True)
+
 # loss weight
 @click.option('--lambda_GAN',         type=float,                   default=1.0, show_default=True)
 @click.option('--lambda_NCE',         type=float,                   default=1.0, show_default=True)
 @click.option('--lambda_SC',          type=float,                   default=1.0, show_default=True)
 @click.option('--lambda_identity',    type=float,                   default=0.0, show_default=True)
+@click.option('--lambda_cosineSim',   type=float,                   default=1.0, show_default=True)
 
 # dataset
 @click.option('--dataroot',         help='Training data',             metavar='[DIR]', type=str,                   required=True)
@@ -190,6 +195,7 @@ def main(**kwargs):
     opts = dnnlib.EasyDict(kwargs) # Command line arguments.
     c = dnnlib.EasyDict() # Main config dict.
     c.G_kwargs = dnnlib.EasyDict(class_name=None, z_dim=64, w_dim=128, mapping_kwargs=dnnlib.EasyDict())
+    c.G_kwargs.style_extractor = opts.style_extractor
     c.G_opt_kwargs = dnnlib.EasyDict(class_name='torch.optim.Adam', betas=[0,0.99], eps=1e-8)
     c.D_opt_kwargs = dnnlib.EasyDict(class_name='torch.optim.Adam', betas=[0,0.99], eps=1e-8)
     c.data_loader_kwargs = dnnlib.EasyDict(pin_memory=True, prefetch_factor=2)
@@ -287,6 +293,9 @@ def main(**kwargs):
     c.loss_kwargs.lambda_NCE = opts.lambda_nce
     c.loss_kwargs.lambda_SC = opts.lambda_sc
     c.loss_kwargs.lambda_identity = opts.lambda_identity
+    c.loss_kwargs.lambda_cosineSim = opts.lambda_cosinesim
+    c.loss_kwargs.style_extractor = opts.style_extractor
+    c.loss_kwargs.arc_path = opts.arc_path
 
     c.D_kwargs = dnnlib.EasyDict(
         class_name=opts.netd,
