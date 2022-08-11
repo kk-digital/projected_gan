@@ -178,7 +178,7 @@ class ECUTPreStyleLoss(Loss):
                 real = torch.cat([real_A, real_B], dim=0) if self.nce_idt or self.lambda_identity > 0 else real_A
                 fake, real_style = self.run_G(real)
                 # TODO
-                _, fake_style = self.run_G(fake)
+                _, fake_style = self.run_G(fake, only_style=True)
                 fake_B = fake[:real_A.size(0)]
                 fake_idt_B = fake[real_A.size(0):]
                 gen_logits = self.run_D(fake_B, blur_sigma=blur_sigma)
