@@ -91,9 +91,12 @@ class SCLoss(Loss):
             weights = [ 1 / n_layers for i in range(0, n_layers) ]
 
         total_loss = 0.0
-        for i, (feat_src, feat_tgt, weight) in enumerate(zip(feats_src, feats_tgt, loss_weights)):
+        for i, (feat_src, feat_tgt, weight) in enumerate(zip(feats_src, feats_tgt, weights)):
             loss = self.criterion_sc.loss(feat_src, feat_tgt, None, i)
             total_loss += loss.mean() * weight
+
+        if not self.criterion_sc.conv_init:
+            self.criterion_sc.update_init_()
 
         return total_loss 
 
