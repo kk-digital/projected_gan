@@ -11,6 +11,7 @@
 import numpy as np
 import torch
 import torch.nn.functional as F
+import torch.nn.functional as FF
 import dnnlib
 from torch_utils import training_stats
 from torch_utils.ops import upfirdn2d
@@ -48,6 +49,7 @@ class ECUTPreStyleLoss(Loss):
                  blur_init_sigma=0, blur_fade_kimg=0, **kwargs):
         super().__init__()
         assert isinstance(G, Transtyle)
+        assert isinstance(G_ema, Transtyle)
         self.device = device
         self.G = G
         self.G_ema = G_ema
@@ -72,6 +74,16 @@ class ECUTPreStyleLoss(Loss):
             self.netArc.eval()
             self.netArc.requires_grad_(False)
             self.F.se = torch.nn.Linear(512, G.num_style_outputs)
+
+            def get_style(img):
+                img_112 = FF.interpolate(img,size=(112,112), mode='bicubic')
+                img_style = self.netArc(img_112)
+                img_style = self.F.se(img_style)
+                img_style = FF.normalize(img_style, p=2, dim=1)
+                return img_style
+
+            self.G_ema.styleformer = get_style
+            self.G.styleformer = get_style
         else:
             self.netArc = None
 

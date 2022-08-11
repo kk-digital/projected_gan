@@ -218,12 +218,6 @@ def training_loop(
     if restart_every > 0 and os.path.isfile(misc.get_ckpt_path(run_dir)):
         ckpt_pkl = resume_pkl = misc.get_ckpt_path(run_dir)
 
-    # Print network summary tables.
-    if rank == 0:
-        fimg = torch.empty([batch_gpu, 3, training_set.resolution, training_set.resolution], device=device)
-        img = misc.print_module_summary(G, [fimg])
-        misc.print_module_summary(D, [img])
-
     # Distribute across GPUs.
     if rank == 0:
         print(f'Distributing across {num_gpus} GPUs...')
@@ -236,6 +230,12 @@ def training_loop(
     if rank == 0:
         print('Setting up training phases...')
     loss = dnnlib.util.construct_class_by_name(device=device, G=G, G_ema=G_ema, D=D, F=F, resolution=training_set.resolution, **loss_kwargs) # subclass of training.loss.Loss
+
+    # Print network summary tables.
+    if rank == 0:
+        fimg = torch.empty([batch_gpu, 3, training_set.resolution, training_set.resolution], device=device)
+        img = misc.print_module_summary(G, [fimg])
+        misc.print_module_summary(D, [img])
 
     # Resume from existing pickle.
     if (resume_pkl is not None) and (rank == 0):

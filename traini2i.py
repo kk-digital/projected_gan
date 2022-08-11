@@ -195,7 +195,6 @@ def main(**kwargs):
     opts = dnnlib.EasyDict(kwargs) # Command line arguments.
     c = dnnlib.EasyDict() # Main config dict.
     c.G_kwargs = dnnlib.EasyDict(class_name=None, z_dim=64, w_dim=128, mapping_kwargs=dnnlib.EasyDict())
-    c.G_kwargs.style_extractor = opts.style_extractor
     c.G_opt_kwargs = dnnlib.EasyDict(class_name='torch.optim.Adam', betas=[0,0.99], eps=1e-8)
     c.D_opt_kwargs = dnnlib.EasyDict(class_name='torch.optim.Adam', betas=[0,0.99], eps=1e-8)
     c.data_loader_kwargs = dnnlib.EasyDict(pin_memory=True, prefetch_factor=2)
@@ -240,6 +239,7 @@ def main(**kwargs):
     # Base configuration.
     c.ema_kimg = c.batch_size * 10 / 32
     c.G_kwargs = dnnlib.EasyDict(class_name=opts.netg)
+    c.G_kwargs.style_extractor = opts.style_extractor
     if opts.netg == 'models.cyclegan_networks.ResnetGenerator':
         c.G_kwargs.input_nc = 3
         c.G_kwargs.output_nc = 3
