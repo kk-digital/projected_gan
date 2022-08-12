@@ -391,6 +391,47 @@ class Normalization(nn.Module):
         return (img - self.mean) / self.std
 
 
+class ContrastiveNCELoss(nn.Module):
+    def __init__(self, temperature: float = 0.07):
+        super().__init__()
+        self.temperature = temperature
+        self.criterion = torch.nn.CrossEntropyLoss()
+
+    def info_nce_stats(self, features: torch.Tensor):
+        assert len(features.shape) == 2
+        assert features.size(0) % 2 == 0 and features.size(0) >= 4
+        device = features.device
+
+        labels = torch.cat([torch.arange(features.size(0) // 2) for _ in range(2)], dim=0)
+        labels = (labels.unsqueeze(0) == labels.unsqueeze(1)).float()
+        labels = labels.to(device)
+
+        features = F.normalize(features, dim=1)
+        similarity_matrix = torch.matmul(features, features.T)
+
+        # discard the main diagonal from both: labels and similarities matrix
+        mask = torch.eye(labels.shape[0], dtype=torch.bool).to(device)
+        labels = labels[~mask].view(labels.shape[0], -1)
+        similarity_matrix = similarity_matrix[~mask].view(similarity_matrix.shape[0], -1)
+        # assert similarity_matrix.shape == labels.shape
+
+        # select and combine multiple positives
+        positives = similarity_matrix[labels.bool()].view(labels.shape[0], -1)
+
+        # select only the negatives the negatives
+        negatives = similarity_matrix[~labels.bool()].view(similarity_matrix.shape[0], -1)
+
+        logits = torch.cat([positives, negatives], dim=1)
+        labels = torch.zeros(logits.shape[0], dtype=torch.long).to(device)
+
+        logits = logits / self.temperature
+        return logits, labels
+
+    def forward(self, features: torch.Tensor):
+        logits, labels = self.info_nce_stats(features)
+        return self.criterion(logits, labels)
+
+
 class VGG16(nn.Module):
     def __init__(self):
         super(VGG16, self).__init__()

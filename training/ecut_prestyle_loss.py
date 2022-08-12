@@ -67,6 +67,7 @@ class ECUTPreStyleLoss(Loss):
         self.adaptive_loss = adaptive_loss
         self.criterionIdt = torch.nn.MSELoss()
         self.cosineSim = CosineSimilarityLoss()
+        self.criterionContrastiveNCE = losses.ContrastiveNCELoss()
 
         if style_extractor == 'arc':
             arc_checkpoint = torch.load(arc_path, map_location=torch.device("cpu"))
@@ -152,17 +153,18 @@ class ECUTPreStyleLoss(Loss):
     def run_G(self, real, only_style: bool=False, update_emas=False):
         if self.netArc is not None:
             img_112 = F.interpolate(real,size=(112,112), mode='bicubic')
-            img_style = self.netArc(img_112)
-            img_style = self.F.se(img_style)
+            img_latent = self.netArc(img_112)
+            img_style = self.F.se(img_latent)
             img_style = F.normalize(img_style, p=2, dim=1)
         else:
+            img_latent = None
             img_style = None
 
         if only_style and img_style is not None:
-            return None, img_style
+            return None, img_style, img_latent
 
         fake, style = self.G(real, in_styles=img_style, return_style=True)
-        return fake, style
+        return fake, style, img_latent
 
     def run_D(self, img, blur_sigma=0, update_emas=False):
         blur_size = np.floor(blur_sigma * 3)
@@ -188,9 +190,9 @@ class ECUTPreStyleLoss(Loss):
             # Gmain: Maximize logits for generated images.
             with torch.autograd.profiler.record_function('Gmain_forward'):
                 real = torch.cat([real_A, real_B], dim=0) if self.nce_idt or self.lambda_identity > 0 else real_A
-                fake, real_style = self.run_G(real)
+                fake, real_style, real_latent = self.run_G(real)
                 # TODO
-                _, fake_style = self.run_G(fake, only_style=True)
+                _, fake_style, fake_latent = self.run_G(fake, only_style=True)
                 fake_B = fake[:real_A.size(0)]
                 fake_idt_B = fake[real_A.size(0):]
                 gen_logits = self.run_D(fake_B, blur_sigma=blur_sigma)
@@ -201,9 +203,16 @@ class ECUTPreStyleLoss(Loss):
                 training_stats.report('Loss/G/gan', loss_Gmain_GAN)
 
                 if self.lambda_cosineSim > 0:
-                    loss_Gmain_sim = self.cosineSim(fake_style, real_style)
-                    loss_Gmain = loss_Gmain + self.lambda_cosineSim * loss_Gmain_sim
-                    training_stats.report('Loss/G/cosineSimilarity', loss_Gmain_sim)
+                    if real_latent is not None:
+                        real_style = real_latent
+                        fake_style = fake_latent
+                        loss_Gmain_sim = self.cosineSim(fake_style, real_style)
+                        loss_Gmain = loss_Gmain + self.lambda_cosineSim * loss_Gmain_sim
+                        training_stats.report('Loss/G/cosineSimilarity', loss_Gmain_sim)
+                    else:
+                        loss_Gmain_sNCE = self.criterionContrastiveNCE(torch.cat([real_style, fake_style], dim=0))
+                        loss_Gmain = loss_Gmain + self.lambda_cosineSim * loss_Gmain_sNCE
+                        training_stats.report('Loss/G/StyleNCE', loss_Gmain_sNCE)
 
                 if self.lambda_identity > 0:
                     loss_Gmain_idt = self.criterionIdt(fake_idt_B, real_B)
@@ -228,7 +237,7 @@ class ECUTPreStyleLoss(Loss):
 
             # Dmain: Minimize logits for generated images.
             with torch.autograd.profiler.record_function('Dgen_forward'):
-                gen_img, _ = self.run_G(real_A, update_emas=True)
+                gen_img, _, _ = self.run_G(real_A, update_emas=True)
                 gen_logits = self.run_D(gen_img, blur_sigma=blur_sigma)
                 loss_Dgen = (F.relu(torch.ones_like(gen_logits) + gen_logits)).mean()
 
