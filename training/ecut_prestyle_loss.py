@@ -44,7 +44,7 @@ class ECUTPreStyleLoss(Loss):
     def __init__(self, device, G, D, F, G_ema, resolution: int,
                  nce_layers: list, feature_net: str, nce_idt: bool, num_patches: int,
                  adaptive_loss: bool, lambda_cosineSim: float = 1.0, arc_path: str = None,
-                 style_extractor: str = None,
+                 style_extractor: str = None, lambda_GAN_random: float = 1,
                  lambda_GAN: float=1.0, lambda_NCE: float=1.0, lambda_identity: float = 0,
                  blur_init_sigma=0, blur_fade_kimg=0, **kwargs):
         super().__init__()
@@ -59,6 +59,7 @@ class ECUTPreStyleLoss(Loss):
         self.nce_idt = nce_idt
         self.num_patches = num_patches
         self.lambda_GAN = lambda_GAN
+        self.lambda_GAN_random = lambda_GAN_random
         self.lambda_NCE = lambda_NCE
         self.lambda_identity = lambda_identity
         self.lambda_cosineSim = lambda_cosineSim
@@ -150,7 +151,7 @@ class ECUTPreStyleLoss(Loss):
         
         return total_nce_loss
 
-    def run_G(self, real, only_style: bool=False, update_emas=False):
+    def run_G(self, real, gen_random_fake: bool=False, only_style: bool=False, update_emas=False):
         if self.netArc is not None:
             img_112 = F.interpolate(real,size=(112,112), mode='bicubic')
             img_latent = self.netArc(img_112)
@@ -160,11 +161,26 @@ class ECUTPreStyleLoss(Loss):
             img_latent = None
             img_style = None
 
-        if only_style and img_style is not None:
-            return None, img_style, img_latent
+        if only_style:
+            if img_style is None:
+                img_style = self.G(real, only_style=True)
 
-        fake, style = self.G(real, in_styles=img_style, return_style=True)
-        return fake, style, img_latent
+            return img_style, img_latent
+
+        fake, img_style = self.G(real, in_styles=img_style, return_style=True)
+
+        if gen_random_fake:
+            if self.netArc is not None:
+                random_img_style = torch.rand(img_style.shape).to(img_style.device)
+                random_img_style = F.normalize(random_img_style, p=2, dim=1)
+            else:
+                random_img_style = self.G.styleformer.random_output(img_style.size(0), img_style.device)
+            random_fake = self.G(real, in_styles=random_img_style)
+        else:
+            random_img_style = None
+            random_fake = None
+
+        return fake, img_style, random_fake, random_img_style , img_latent
 
     def run_D(self, img, blur_sigma=0, update_emas=False):
         blur_size = np.floor(blur_sigma * 3)
@@ -190,9 +206,9 @@ class ECUTPreStyleLoss(Loss):
             # Gmain: Maximize logits for generated images.
             with torch.autograd.profiler.record_function('Gmain_forward'):
                 real = torch.cat([real_A, real_B], dim=0) if self.nce_idt or self.lambda_identity > 0 else real_A
-                fake, real_style, real_latent = self.run_G(real)
+                fake, real_style, random_fake, random_img_style, real_latent = self.run_G(real, gen_random_fake=self.lambda_GAN_random>0)
                 # TODO
-                _, fake_style, fake_latent = self.run_G(fake, only_style=True)
+                fake_style, fake_latent = self.run_G(fake, only_style=True)
                 fake_B = fake[:real_A.size(0)]
                 fake_idt_B = fake[real_A.size(0):]
                 gen_logits = self.run_D(fake_B, blur_sigma=blur_sigma)
@@ -201,6 +217,16 @@ class ECUTPreStyleLoss(Loss):
                 training_stats.report('Loss/scores/fake', gen_logits)
                 training_stats.report('Loss/signs/fake', gen_logits.sign())
                 training_stats.report('Loss/G/gan', loss_Gmain_GAN)
+
+                if self.lambda_GAN_random > 0:
+                    random_gen_logits = self.run_D(random_fake, blur_sigma=blur_sigma)
+                    loss_Gmain_GAN_random = (-random_gen_logits).mean()
+                    loss_Gmain = self.lambda_GAN_random * loss_Gmain_GAN_random
+                    training_stats.report('Loss/G/gan_random', loss_Gmain_GAN_random)
+                    if real_latent is None:
+                        random_fake_style_rec, _ = self.run_G(random_fake, only_style=True)
+                        real_style = torch.cat([real_style, random_img_style], dim=0)
+                        fake_style = torch.cat([fake_style, random_fake_style_rec], dim=0)
 
                 if self.lambda_cosineSim > 0:
                     if real_latent is not None:
@@ -237,7 +263,7 @@ class ECUTPreStyleLoss(Loss):
 
             # Dmain: Minimize logits for generated images.
             with torch.autograd.profiler.record_function('Dgen_forward'):
-                gen_img, _, _ = self.run_G(real_A, update_emas=True)
+                gen_img, _, _, _, _ = self.run_G(real_A, update_emas=True)
                 gen_logits = self.run_D(gen_img, blur_sigma=blur_sigma)
                 loss_Dgen = (F.relu(torch.ones_like(gen_logits) + gen_logits)).mean()
 

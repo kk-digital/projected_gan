@@ -1,5 +1,6 @@
 import torch
 import torch.nn
+import torch.nn.functional as F
 from torch.nn.parameter import Parameter
 from .patch_embed import EmbeddingStem
 from .transformer import Transformer
@@ -65,5 +66,11 @@ class StyleFormer(torch.nn.Module):
         x = x.permute(0, 2, 1)
         x = self.token_merge(x)
         x = x.view(x.size(0), -1)
+        x = F.normalize(x, p=2, dim=1)
         x = self.output_layer(x)
         return x
+    
+    def random_output(self, batch_size, device):
+        x = torch.rand([batch_size, self.embedding_dim]).to(device)
+        x = F.normalize(x)
+        return self.output_layer(x)

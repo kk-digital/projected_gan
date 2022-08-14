@@ -88,10 +88,11 @@ class StridedConvF(nn.Module):
 
 
 class PatchSampleF(nn.Module):
-    def __init__(self, use_mlp=False, init_type='normal', init_gain=0.02, nc=256, gpu_ids=[]):
+    def __init__(self, mlp_layers: int=2, use_mlp=False, init_type='normal', init_gain=0.02, nc=256, gpu_ids=[]):
         # potential issues: currently, we use the same patch_ids for multiple images in the batch
         super(PatchSampleF, self).__init__()
         self.l2norm = Normalize(2)
+        self.mlp_layers = mlp_layers
         self.use_mlp = use_mlp
         self.nc = nc  # hard-coded
         self.mlp_init = False
@@ -102,7 +103,10 @@ class PatchSampleF(nn.Module):
     def create_mlp(self, feats):
         for mlp_id, feat in enumerate(feats):
             input_nc = feat.shape[1]
-            mlp = nn.Sequential(*[nn.Linear(input_nc, self.nc), nn.ReLU(), nn.Linear(self.nc, self.nc)])
+            mlp_list = [nn.Linear(input_nc, self.nc)]
+            for i in range(1, self.mlp_layers):
+                mlp_list += [  nn.ReLU(), nn.Linear(self.nc, self.nc)]
+            mlp = nn.Sequential(*mlp_list)
             if len(self.gpu_ids) > 0:
                 mlp.cuda()
             setattr(self, 'mlp_%d' % mlp_id, mlp)

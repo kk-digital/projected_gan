@@ -131,6 +131,7 @@ def parse_comma_separated_list(s):
 @click.option('--nce_idt',          help='identity', is_flag=True)
 @click.option('--nce_adaptive',     help='patchnce adaptive', is_flag=True)
 @click.option('--num_patches',      help='number of negative patches',           metavar='INT',   type=click.IntRange(min=1), default=256)
+@click.option('--nce_mlp_layers',   help='NCE mlp layers',           metavar='INT',   type=click.IntRange(min=2, max=10), default=2)
 
 # Spatial-Correlative
 @click.option('--sc_layers',       help='feature layers',          type=str,        default=None,                 show_default=True)
@@ -143,6 +144,7 @@ def parse_comma_separated_list(s):
 
 # loss weight
 @click.option('--lambda_GAN',         type=float,                   default=1.0, show_default=True)
+@click.option('--lambda_GAN_random',  type=float,                   default=0.0, show_default=True)
 @click.option('--lambda_NCE',         type=float,                   default=1.0, show_default=True)
 @click.option('--lambda_SC',          type=float,                   default=1.0, show_default=True)
 @click.option('--lambda_identity',    type=float,                   default=0.0, show_default=True)
@@ -246,6 +248,7 @@ def main(**kwargs):
     
     c.F_kwargs = dnnlib.EasyDict(class_name=opts.netf)
     c.F_kwargs.use_mlp = True
+    c.F_kwargs.mlp_layers = opts.nce_mlp_layers
 
     # Resume.
     if opts.resume is not None:
@@ -290,6 +293,7 @@ def main(**kwargs):
     c.loss_kwargs.num_patches = opts.num_patches
     c.loss_kwargs.patch_size = opts.patch_size
     c.loss_kwargs.lambda_GAN = opts.lambda_gan
+    c.loss_kwargs.lambda_GAN_random = opts.lambda_gan_random
     c.loss_kwargs.lambda_NCE = opts.lambda_nce
     c.loss_kwargs.lambda_SC = opts.lambda_sc
     c.loss_kwargs.lambda_identity = opts.lambda_identity

@@ -294,7 +294,13 @@ class Transtyle(torch.nn.Module):
         
         self.model = nn.Sequential(*model)
 
-    def forward(self, input, layers=[], encode_only=False, in_styles=None, return_style=False):
+    def forward(self, input, layers=[], encode_only=False, in_styles=None, return_style=False, only_style=False):
+        if only_style:
+            if in_styles is not None:
+                return in_styles
+            else:
+                return self.styleformer(input)
+
         feat = input
         feats = []
         styles = None

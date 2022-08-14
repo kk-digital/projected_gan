@@ -40,16 +40,17 @@ from i2imetrics.all_score import calculate_scores_given_paths
 
 def setup_snapshot_image_grid(eval_set, random_seed=0):
     rnd = np.random.RandomState(random_seed)
-    gw = np.clip(7680 // eval_set.resolution, 7, 32)
-    gh = np.clip(4320 // eval_set.resolution, 4, 32)
+    min_w, min_h, max_w, max_h = 7, 4, 14, 14
+    gw = np.clip(7680 // eval_set.resolution, min_w, max_w)
+    gh = np.clip(4320 // eval_set.resolution, min_h, max_h)
     gh //= 2
 
     if True:
         if len(eval_set) < gw * gh:
             distance = gw * gh
             cw, ch = gw, gh
-            for h in range(4, 17):
-                for w in range(max(7, h*2), min(33, h*4+1)):
+            for h in range(min_h, max_h // 2 + 1):
+                for w in range(max(min_w, h*2), min(max_w, h*4+1)):
                     if w * h >= len(eval_set) and (w * h - len(eval_set)) < distance:
                         distance = w * h - len(eval_set)
                         cw, ch = w, h

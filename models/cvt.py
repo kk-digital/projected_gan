@@ -171,12 +171,28 @@ class CvT(nn.Module):
         self.to_logits = nn.Sequential(
             nn.AdaptiveAvgPool2d(1),
             Rearrange('... () () -> ...'),
+            NormalizeLayer(2, 1),
             spectral_norm(nn.Linear(dim, num_classes))
         )
 
     def forward(self, x):
         latents = self.layers(x)
         return self.to_logits(latents)
+
+    def random_output(self, batch_size, device):
+        x = torch.rand([batch_size, self.embedding_dim]).to(device)
+        x = F.normalize(x)
+        return self.to_logits[3](x)
+    
+
+class NormalizeLayer(nn.Module):
+    def __init__(self, p, dim):
+        super().__init__()
+        self.p = p
+        self.dim = dim
+    
+    def forward(self, x):
+        return F.normalize(x, p=self.p, dim=self.dim)
 
 
 class CvTGenerator(nn.Module):
