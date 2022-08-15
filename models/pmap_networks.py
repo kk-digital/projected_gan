@@ -62,14 +62,13 @@ class AttnResnet(nn.Module):
         self.layers = nn.Sequential(*layers)
     
     def forward(self, feat: torch.Tensor):
-        _, _, h, w = feat.shape
         nh, nw = self.output_shape
         feat = F.interpolate(feat, self.output_shape)
         feat = self.layers(feat)
         feat = feat / self.temperature
         feat = feat.exp()
         sum = feat.sum(dim=[2,3]).unsqueeze(2).unsqueeze(3).expand(-1, -1, feat.size(2), feat.size(2))
-        feat = (feat / sum) * (nh * nw / (h * w))
+        feat = (feat / sum) * (nh * nw)
         return feat
 
 
@@ -86,14 +85,13 @@ class AttnConv1x1(nn.Module):
         self.layers = nn.Sequential(*layers)
     
     def forward(self, feat: torch.Tensor):
-        _, _, h, w = feat.shape
         nh, nw = self.output_shape
         feat = F.interpolate(feat, self.output_shape)
         feat = self.layers(feat)
         feat = feat / self.temperature
         feat = feat.exp()
         sum = feat.sum(dim=[2,3]).unsqueeze(2).unsqueeze(3).expand(-1, -1, feat.size(2), feat.size(2))
-        feat = (feat / sum) * (nh * nw / (h * w))
+        feat = (feat / sum) * (nh * nw)
         return feat
 
 

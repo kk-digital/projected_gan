@@ -79,7 +79,7 @@ class PMapLoss(Loss):
 
         attn_feats = real_feats[len(real_feats)//2:]
         real_feats = real_feats[:len(real_feats)//2]
-        fake_feats = fake_feats[:len(real_feats)//2]
+        fake_feats = fake_feats[:len(fake_feats)//2]
         return self.F.forward(real_feats, attn_feats, fake_feats)
 
     def run_G(self, real, update_emas=False):
