@@ -461,14 +461,14 @@ def training_loop(
                 snapshot_data['progress']['pl_mean'] = loss.pl_mean.cpu()
 
             with open(snapshot_pkl, 'wb') as f:
-                if hasattr(G, 'styleformer'):
-                    fg = G.styleformer
-                    G.styleformer = None
-                    G_ema.styleformer = None
+                # if hasattr(G, 'styleformer'):
+                #     fg = G.styleformer
+                #     G.styleformer = None
+                #     G_ema.styleformer = None
                 pickle.dump(snapshot_data, f)
-                if hasattr(G, 'styleformer'):
-                    G.styleformer = fg
-                    G_ema.styleformer = fg
+                # if hasattr(G, 'styleformer'):
+                #     G.styleformer = fg
+                #     G_ema.styleformer = fg
 
         # Evaluate metrics.
         # if (snapshot_data is not None) and (len(metrics) > 0):
@@ -491,14 +491,14 @@ def training_loop(
                     best_fid = fid_val
 
                     with open(snapshot_pkl, 'wb') as f:
-                        if hasattr(G, 'styleformer'):
-                            fg = G.styleformer
-                            G.styleformer = None
-                            G_ema.styleformer = None
+                        # if hasattr(G, 'styleformer'):
+                            # fg = G.styleformer
+                            # G.styleformer = None
+                            # G_ema.styleformer = None
                         dill.dump(snapshot_data, f)
-                        if hasattr(G, 'styleformer'):
-                            G.styleformer = fg
-                            G_ema.styleformer = fg
+                        # if hasattr(G, 'styleformer'):
+                        #     G.styleformer = fg
+                        #     G_ema.styleformer = fg
                     # save curr iteration number (directly saving it to pkl leads to problems with multi GPU)
                     with open(cur_nimg_txt, 'w') as f:
                         f.write(str(cur_nimg))
