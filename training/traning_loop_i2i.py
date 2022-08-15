@@ -108,14 +108,14 @@ def save_image(img: torch.Tensor, path: str):
     img = (img.permute(1, 2, 0) * 127.5 + 128).clamp(0, 255).to(torch.uint8)
     PIL.Image.fromarray(img.cpu().numpy(), 'RGB').save(path)
 
-def eval_metrics(generator, eval_set, cur_nimg: int, run_dir: str, device):
+def eval_metrics(generator, eval_set, cur_nimg: int, run_dir: str, device, max_test: int=1000):
     result_dir = os.path.join(run_dir, 'results', f'{cur_nimg//1000:06d}')
     real_B_path = os.path.join(result_dir, 'real_B')
     fake_B_path = os.path.join(result_dir, 'fake_B')
     os.makedirs(real_B_path, exist_ok=True)
     os.makedirs(fake_B_path, exist_ok=True)
     for i, imgs in enumerate(eval_set):
-        if i > len(eval_set):
+        if i > len(eval_set) or i >= max_test:
             break
 
         A, B = imgs['A'].to(device).unsqueeze(0), imgs['B'].to(device).unsqueeze(0)
