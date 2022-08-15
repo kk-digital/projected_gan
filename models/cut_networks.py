@@ -88,7 +88,7 @@ class StridedConvF(nn.Module):
 
 
 class PatchSampleF(nn.Module):
-    def __init__(self, mlp_layers: int=2, use_mlp=False, init_type='normal', init_gain=0.02, nc=256, gpu_ids=[]):
+    def __init__(self, mlp_layers: int=2, use_mlp=False, init_type='normal', init_gain=0.02, nc=256, gpu_ids=[], **kwargs):
         # potential issues: currently, we use the same patch_ids for multiple images in the batch
         super(PatchSampleF, self).__init__()
         self.l2norm = Normalize(2)

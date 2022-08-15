@@ -133,6 +133,13 @@ def parse_comma_separated_list(s):
 @click.option('--num_patches',      help='number of negative patches',           metavar='INT',   type=click.IntRange(min=1), default=256)
 @click.option('--nce_mlp_layers',   help='NCE mlp layers',           metavar='INT',   type=click.IntRange(min=2, max=10), default=2)
 
+# SMap
+@click.option('--attn_layers',   help='smap attn layers',           metavar='INT',   type=click.IntRange(min=1, max=5), default=2)
+@click.option('--map_layers',    help='smap map layers',           metavar='INT',   type=click.IntRange(min=1, max=5), default=2)
+@click.option('--attn_net',      help='smap attn net type',          type=click.Choice(['conv1x1', 'resnet']), default='conv1x1', show_default=True)
+@click.option('--map_net',      help='smap map net type',          type=click.Choice(['conv1x1', 'resnet']), default='resnet', show_default=True)
+@click.option('--attn_temperature', help='smap attn temperature',  metavar='INT',   type=click.FloatRange(min=0.0001, max=10), default=8)
+
 # Spatial-Correlative
 @click.option('--sc_layers',       help='feature layers',          type=str,        default=None,                 show_default=True)
 @click.option('--patch_size',      help='patch size',           metavar='INT',   type=click.IntRange(min=16), default=32)
@@ -146,6 +153,7 @@ def parse_comma_separated_list(s):
 @click.option('--lambda_GAN',         type=float,                   default=1.0, show_default=True)
 @click.option('--lambda_GAN_random',  type=float,                   default=0.0, show_default=True)
 @click.option('--lambda_NCE',         type=float,                   default=1.0, show_default=True)
+@click.option('--lambda_PMap',         type=float,                   default=1.0, show_default=True)
 @click.option('--lambda_SC',          type=float,                   default=1.0, show_default=True)
 @click.option('--lambda_identity',    type=float,                   default=0.0, show_default=True)
 @click.option('--lambda_cosineSim',   type=float,                   default=1.0, show_default=True)
@@ -248,7 +256,11 @@ def main(**kwargs):
     
     c.F_kwargs = dnnlib.EasyDict(class_name=opts.netf)
     c.F_kwargs.use_mlp = True
-    c.F_kwargs.mlp_layers = opts.nce_mlp_layers
+    c.F_kwargs.attn_net = opts.attn_net
+    c.F_kwargs.map_net = opts.map_net
+    c.F_kwargs.attn_layers = opts.attn_layers
+    c.F_kwargs.map_layers = opts.map_layers
+    c.F_kwargs.attn_temperature = opts.attn_temperature
 
     # Resume.
     if opts.resume is not None:
@@ -295,6 +307,7 @@ def main(**kwargs):
     c.loss_kwargs.lambda_GAN = opts.lambda_gan
     c.loss_kwargs.lambda_GAN_random = opts.lambda_gan_random
     c.loss_kwargs.lambda_NCE = opts.lambda_nce
+    c.loss_kwargs.lambda_PMap = opts.lambda_pmap
     c.loss_kwargs.lambda_SC = opts.lambda_sc
     c.loss_kwargs.lambda_identity = opts.lambda_identity
     c.loss_kwargs.lambda_cosineSim = opts.lambda_cosinesim
