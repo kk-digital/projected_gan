@@ -97,6 +97,16 @@ class AttnConv1x1(nn.Module):
         return feat
 
 
+class AttnNone(nn.Module):
+    def __init__(self,  output_shape: Tuple[int, int], **kwargs):
+        super().__init__()
+        self.output_shape = output_shape
+   
+    def forward(self, feat: torch.Tensor):
+        nh, nw = self.output_shape
+        return torch.ones([feat.size(0), 1, nh, nw], dtype=feat.dtype).to(feat.device)
+
+
 class PMapNet(nn.Module):
     def __init__(self, attn_net='conv1x1', map_net='resnet', attn_layers: int=2, map_layers: int=2, attn_temperature: float=8, **kwargs):
         super().__init__()
@@ -114,6 +124,8 @@ class PMapNet(nn.Module):
                 attn_net = AttnConv1x1(attn.size(1), self.attn_layers, (h, w), self.attn_temperature)
             elif self.attn_net_type == 'resnet':
                 attn_net = AttnResnet(attn.size(1), self.attn_layers, (h, w), self.attn_temperature)
+            elif self.attn_net_type == 'none':
+                attn_net = AttnNone((h, w))
             else:
                 raise NotImplemented(self.attn_net_type)
             setattr(self, f'attn_layer_{i}', attn_net)
@@ -156,6 +168,8 @@ class PMapAttention(nn.Module):
                 attn_net = AttnConv1x1(attn.size(1), self.attn_layers, (h, w), self.attn_temperature)
             elif self.attn_net_type == 'resnet':
                 attn_net = AttnResnet(attn.size(1), self.attn_layers, (h, w), self.attn_temperature)
+            elif self.attn_net_type == 'none':
+                attn_net = AttnNone((h, w))
             else:
                 raise NotImplemented(self.attn_net_type)
             setattr(self, f'attn_layer_{i}', attn_net)

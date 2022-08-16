@@ -136,7 +136,7 @@ def parse_comma_separated_list(s):
 # SMap
 @click.option('--attn_layers',   help='smap attn layers',           metavar='INT',   type=click.IntRange(min=1, max=5), default=2)
 @click.option('--map_layers',    help='smap map layers',           metavar='INT',   type=click.IntRange(min=1, max=5), default=2)
-@click.option('--attn_net',      help='smap attn net type',          type=click.Choice(['conv1x1', 'resnet']), default='conv1x1', show_default=True)
+@click.option('--attn_net',      help='smap attn net type',          type=click.Choice(['conv1x1', 'resnet', 'none']), default='conv1x1', show_default=True)
 @click.option('--map_net',      help='smap map net type',          type=click.Choice(['conv1x1', 'resnet']), default='resnet', show_default=True)
 @click.option('--attn_temperature', help='smap attn temperature',  metavar='INT',   type=click.FloatRange(min=0.0001, max=10), default=8)
 
