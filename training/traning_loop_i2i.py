@@ -40,25 +40,24 @@ from i2imetrics.all_score import calculate_scores_given_paths
 
 def setup_snapshot_image_grid(eval_set, random_seed=0):
     rnd = np.random.RandomState(random_seed)
-    min_w, min_h, max_w, max_h = 7, 4, 14, 14
+    min_w, min_h, max_w, max_h = 7, 4, 32, 24
     gw = np.clip(7680 // eval_set.resolution, min_w, max_w)
     gh = np.clip(4320 // eval_set.resolution, min_h, max_h)
     gh //= 2
 
-    if True:
-        if len(eval_set) < gw * gh:
-            distance = gw * gh
-            cw, ch = gw, gh
-            for h in range(min_h, max_h // 2 + 1):
-                for w in range(max(min_w, h*2), min(max_w, h*4+1)):
-                    if w * h >= len(eval_set) and (w * h - len(eval_set)) < distance:
-                        distance = w * h - len(eval_set)
-                        cw, ch = w, h
-            gw, gh = cw, ch
+    if len(eval_set) < gw * gh:
+        distance = gw * gh
+        cw, ch = gw, gh
+        for h in range(min_h, max_h // 2 + 1):
+            for w in range(max(min_w, h*2), min(max_w, h*4+1)):
+                if w * h >= len(eval_set) and (w * h - len(eval_set)) < distance:
+                    distance = w * h - len(eval_set)
+                    cw, ch = w, h
+        gw, gh = cw, ch
 
-        all_indices = list(range(len(eval_set)))
-        rnd.shuffle(all_indices)
-        grid_indices = [all_indices[i % len(all_indices)] for i in range(gw * gh)]
+    all_indices = list(range(len(eval_set)))
+    rnd.shuffle(all_indices)
+    grid_indices = [all_indices[i % len(all_indices)] for i in range(gw * gh)]
 
     # Load data.
     imagesB, imagesA = zip(*[(eval_set[i]['B'], eval_set[i]['A']) for i in grid_indices])
