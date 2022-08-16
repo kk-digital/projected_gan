@@ -123,8 +123,11 @@ class ECUTWeightLoss(Loss):
         feat_k_pool, sample_ids = self.F(feat_k, self.num_patches, None)
         feat_q_pool, _ = self.F(feat_q, self.num_patches, sample_ids)
         attn_weight = []
+        attn_weight_var = 0
         for aw, ids in zip(attn_weight_hw, sample_ids):
-            attn_weight.append(aw.view(aw.size(0), -1)[:, ids].view(-1))
+            baw = aw.view(aw.size(0), -1)[:, ids]
+            attn_weight_var += torch.var(baw, dim=1).mean()
+            attn_weight.append(baw.view(-1))
 
         total_nce_loss = 0.0
         if self.adaptive_loss:
@@ -139,7 +142,7 @@ class ECUTWeightLoss(Loss):
             loss = crit(f_q, f_k, aw)
             total_nce_loss += loss.mean() * weight
         
-        return total_nce_loss
+        return total_nce_loss, attn_weight_var
 
     def run_G(self, real, update_emas=False):
         fake = self.G(real)
@@ -185,13 +188,16 @@ class ECUTWeightLoss(Loss):
                     training_stats.report('Loss/G/identity', loss_Gmain_idt)
 
                 if self.lambda_NCE > 0:
-                    loss_Gmain_NCE = self.calculate_NCE_loss(self.netPre, real_A, fake_B)
+                    loss_Gmain_NCE, loss_weights_var = self.calculate_NCE_loss(self.netPre, real_A, fake_B)
                     training_stats.report('Loss/G/NCE', loss_Gmain_NCE)
+                    training_stats.report('Loss/G/weights_var', loss_weights_var)
                     if self.nce_idt:
-                        loss_Gmain_NCE_idt = self.calculate_NCE_loss(self.netPre, real_B, fake_idt_B)
+                        loss_Gmain_NCE_idt, loss_weights_var_idt = self.calculate_NCE_loss(self.netPre, real_B, fake_idt_B)
                         training_stats.report('Loss/G/NCE_idt', loss_Gmain_NCE_idt)
+                        training_stats.report('Loss/G/weights_var_idt', loss_weights_var_idt)
                         loss_Gmain_NCE = (loss_Gmain_NCE + loss_Gmain_NCE_idt) * 0.5
-                    loss_Gmain = loss_Gmain + loss_Gmain_NCE
+                        loss_weights_var = loss_weights_var + loss_weights_var_idt
+                    loss_Gmain = loss_Gmain + loss_Gmain_NCE * self.lambda_NCE + loss_weights_var
 
                 training_stats.report('Loss/G/loss', loss_Gmain)
 

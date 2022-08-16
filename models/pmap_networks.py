@@ -90,10 +90,10 @@ class AttnConv1x1(nn.Module):
         feat = F.interpolate(feat, self.output_shape)
         feat = self.layers(feat)
         feat = feat / self.temperature
-        feat = F.relu(feat) + 0.00001
+        feat = torch.log(F.relu(feat) + 1.01)
         sum = feat.sum(dim=[2,3]).unsqueeze(2).unsqueeze(3).expand(-1, -1, feat.size(2), feat.size(3))
-        feat = (feat / (sum + 0.001)) * (nh * nw) * 0.2 + 0.8
-        feat = feat.clamp(min = 0.5, max = 10)
+        feat = (feat / sum) * (nh * nw)
+        feat = feat.clamp(min = 0.01, max = 100)
         return feat
 
 
