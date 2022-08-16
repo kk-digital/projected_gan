@@ -137,3 +137,31 @@ class PMapNet(nn.Module):
             diff: torch.Tensor = (rec_feat - real_feat) * attn_map.expand(-1, rec_feat.size(1), -1, -1)
             loss += diff.abs().mean()
         return loss / len(real_feats)
+
+
+class PMapAttention(nn.Module):
+    def __init__(self, attn_net='conv1x1', attn_layers: int=2, attn_temperature: float=8, **kwargs):
+        super().__init__()
+        self.attn_net_type = attn_net
+        self.attn_layers = attn_layers
+        self.attn_temperature = attn_temperature
+
+    def setup(self, feats: List[torch.Tensor], attn_feats: List[torch.Tensor]):
+        assert len(feats) == len(attn_feats)
+        for i, feat, attn in zip(range(len(feats)), feats, attn_feats):
+            _, _, h, w = feat.shape
+            if self.attn_net_type == 'conv1x1':
+                attn_net = AttnConv1x1(attn.size(1), self.attn_layers, (h, w), self.attn_temperature)
+            elif self.attn_net_type == 'resnet':
+                attn_net = AttnResnet(attn.size(1), self.attn_layers, (h, w), self.attn_temperature)
+            else:
+                raise NotImplemented(self.attn_net_type)
+            setattr(self, f'attn_layer_{i}', attn_net)
+
+    def forward(self, attn_feats: List[torch.Tensor]):
+        attn_values = []
+        for i, attn_feat in zip(range(len(attn_feats)), attn_feats):
+            attn_net = getattr(self, f'attn_layer_{i}')
+            attn_map: torch.Tensor = attn_net(attn_feat)
+            attn_values.append(attn_map)
+        return attn_values

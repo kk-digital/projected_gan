@@ -313,6 +313,11 @@ def main(**kwargs):
     c.loss_kwargs.lambda_cosineSim = opts.lambda_cosinesim
     c.loss_kwargs.style_extractor = opts.style_extractor
     c.loss_kwargs.arc_path = opts.arc_path
+    c.loss_kwargs.attn_net = opts.attn_net
+    c.loss_kwargs.map_net = opts.map_net
+    c.loss_kwargs.attn_layers = opts.attn_layers
+    c.loss_kwargs.map_layers = opts.map_layers
+    c.loss_kwargs.attn_temperature = opts.attn_temperature
 
     c.D_kwargs = dnnlib.EasyDict(
         class_name=opts.netd,

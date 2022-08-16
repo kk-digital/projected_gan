@@ -10,7 +10,7 @@ class PatchNCELoss(nn.Module):
         self.cross_entropy_loss = torch.nn.CrossEntropyLoss(reduction='none')
         self.mask_dtype = torch.uint8 if version.parse(torch.__version__) < version.parse('1.2.0') else torch.bool
 
-    def forward(self, feat_q, feat_k):
+    def forward(self, feat_q, feat_k, weights = None):
         num_patches = feat_q.shape[0]
         dim = feat_q.shape[1]
         feat_k = feat_k.detach()
@@ -52,4 +52,7 @@ class PatchNCELoss(nn.Module):
         loss = self.cross_entropy_loss(out, torch.zeros(out.size(0), dtype=torch.long,
                                                         device=feat_q.device))
 
-        return loss
+        if weights is not None:
+            return loss * weights
+        else:
+            return loss
