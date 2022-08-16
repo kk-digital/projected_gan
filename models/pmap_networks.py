@@ -69,6 +69,7 @@ class AttnResnet(nn.Module):
         feat = feat.exp()
         sum = feat.sum(dim=[2,3]).unsqueeze(2).unsqueeze(3).expand(-1, -1, feat.size(2), feat.size(2))
         feat = (feat / sum) * (nh * nw)
+        feat = feat.clamp(min = 0, max = 5)
         return feat
 
 
@@ -89,9 +90,10 @@ class AttnConv1x1(nn.Module):
         feat = F.interpolate(feat, self.output_shape)
         feat = self.layers(feat)
         feat = feat / self.temperature
-        feat = feat.exp()
-        sum = feat.sum(dim=[2,3]).unsqueeze(2).unsqueeze(3).expand(-1, -1, feat.size(2), feat.size(2))
-        feat = (feat / sum) * (nh * nw)
+        feat = F.relu(feat) + 0.00001
+        sum = feat.sum(dim=[2,3]).unsqueeze(2).unsqueeze(3).expand(-1, -1, feat.size(2), feat.size(3))
+        feat = (feat / (sum + 0.001)) * (nh * nw)
+        feat = feat.clamp(min = 0.001, max = 10)
         return feat
 
 
