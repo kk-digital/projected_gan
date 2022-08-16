@@ -27,7 +27,7 @@ class Loss:
 class ECUTLoss(Loss):
     def __init__(self, device, G, D, F, G_ema, resolution: int,
                  nce_layers: list, feature_net: str, nce_idt: bool, num_patches: int,
-                 adaptive_loss: bool,
+                 adaptive_loss: bool, sim_pnorm: float = 0,
                  lambda_GAN: float=1.0, lambda_NCE: float=1.0, lambda_identity: float = 0,
                  blur_init_sigma=0, blur_fade_kimg=0, **kwargs):
         super().__init__()
@@ -61,12 +61,12 @@ class ECUTLoss(Loss):
         patchnce_opt = dnnlib.EasyDict(
             nce_includes_all_negatives_from_minibatch=False,
             batch_size=1,
-            nce_T=0.07
+            nce_T=0.07,
         )
 
         self.nce_layers = nce_layers
         for _ in nce_layers:
-            self.criterionNCE.append(PatchNCELoss(patchnce_opt).to(self.device))
+            self.criterionNCE.append(PatchNCELoss(patchnce_opt, pnormSim=sim_pnorm).to(self.device))
 
         self.setup_F()
         self.F.train().requires_grad_(False).to(self.device)

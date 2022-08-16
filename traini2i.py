@@ -132,6 +132,7 @@ def parse_comma_separated_list(s):
 @click.option('--nce_adaptive',     help='patchnce adaptive', is_flag=True)
 @click.option('--num_patches',      help='number of negative patches',           metavar='INT',   type=click.IntRange(min=1), default=256)
 @click.option('--nce_mlp_layers',   help='NCE mlp layers',           metavar='INT',   type=click.IntRange(min=2, max=10), default=2)
+@click.option('--nce_sim_pnorm',    help='if greater than 0, using pnorm to compute similarity instead of consine similarity', type=float,  default=0.0, show_default=True)
 
 # SMap
 @click.option('--attn_layers',   help='smap attn layers',           metavar='INT',   type=click.IntRange(min=1, max=5), default=2)
@@ -304,6 +305,7 @@ def main(**kwargs):
     c.loss_kwargs.adaptive_loss = opts.nce_adaptive
     c.loss_kwargs.num_patches = opts.num_patches
     c.loss_kwargs.patch_size = opts.patch_size
+    c.loss_kwargs.sim_pnorm = opts.nce_sim_pnorm
     c.loss_kwargs.lambda_GAN = opts.lambda_gan
     c.loss_kwargs.lambda_GAN_random = opts.lambda_gan_random
     c.loss_kwargs.lambda_NCE = opts.lambda_nce
