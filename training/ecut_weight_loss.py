@@ -18,6 +18,7 @@ from torch_utils.ops import upfirdn2d
 from models import losses
 from models.patchnce import PatchNCELoss
 from torch.nn.parameter import Parameter
+from visual_utils import image_blend_normal, image_grid, visualize_feature, save_image
 
 
 class Loss:
@@ -142,7 +143,7 @@ class ECUTWeightLoss(Loss):
             loss = crit(f_fake, f_real, aw)
             total_nce_loss += loss.mean() * weight
         
-        return total_nce_loss, attn_weight_var
+        return total_nce_loss, attn_weight_var, attn_weight_hw
 
     def run_G(self, real, update_emas=False):
         fake = self.G(real)
@@ -188,15 +189,33 @@ class ECUTWeightLoss(Loss):
                     training_stats.report('Loss/G/identity', loss_Gmain_idt)
 
                 if self.lambda_NCE > 0:
-                    loss_Gmain_NCE, loss_weights_var = self.calculate_NCE_loss(self.netPre, real_A, fake_B)
+                    loss_Gmain_NCE, loss_weights_var, wh = self.calculate_NCE_loss(self.netPre, real_A, fake_B)
+                    if False:
+                        out = image_grid([
+                                real_A, 
+                                fake_B,
+                                image_blend_normal(visualize_feature(wh[0]), real_A),
+                                image_blend_normal(visualize_feature(wh[1]), real_A),
+                                image_blend_normal(visualize_feature(wh[2]), real_A),
+                            ], 10)
+                        save_image(out, "debug_output.png")
                     training_stats.report('Loss/G/NCE', loss_Gmain_NCE)
                     training_stats.report('Loss/G/weights_var', loss_weights_var)
                     if self.nce_idt:
-                        loss_Gmain_NCE_idt, loss_weights_var_idt = self.calculate_NCE_loss(self.netPre, real_B, fake_idt_B)
+                        loss_Gmain_NCE_idt, loss_weights_var_idt, wh_idt = self.calculate_NCE_loss(self.netPre, real_B, fake_idt_B)
                         training_stats.report('Loss/G/NCE_idt', loss_Gmain_NCE_idt)
                         training_stats.report('Loss/G/weights_var_idt', loss_weights_var_idt)
                         loss_Gmain_NCE = (loss_Gmain_NCE + loss_Gmain_NCE_idt) * 0.5
                         loss_weights_var = loss_weights_var + loss_weights_var_idt
+                        if False:
+                            out = image_grid([
+                                    real_B, 
+                                    fake_idt_B,
+                                    image_blend_normal(visualize_feature(wh_idt[0]), real_A),
+                                    image_blend_normal(visualize_feature(wh_idt[1]), real_A),
+                                    image_blend_normal(visualize_feature(wh_idt[2]), real_A),
+                                ], 10)
+                            save_image(out, "debug_output_idt.png")
                     loss_Gmain = loss_Gmain + loss_Gmain_NCE * self.lambda_NCE + loss_weights_var
 
                 training_stats.report('Loss/G/loss', loss_Gmain)
