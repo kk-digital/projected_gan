@@ -27,6 +27,7 @@ import torch
 import torch.nn.functional as F
 import dnnlib
 import pickle
+import GPUtil
 from torch_utils import misc
 from torch_utils import training_stats
 from torch_utils.ops import conv2d_gradfix
@@ -128,6 +129,15 @@ def eval_metrics(generator, eval_set, cur_nimg: int, run_dir: str, device, max_t
                         [fake_B_path, real_B_path], device=device, batch_size=50, dims=2048,
                         use_fid_inception=True, torch_svd=False)
     return result
+
+#----------------------------------------------------------------------------
+
+def report_gpuinfo():
+    gpus = GPUtil.getGPUs()
+    for i, gpu in enumerate(gpus):
+        training_stats.report(f"GPUInfo/Load/GPU{i}", gpu.load)
+        training_stats.report(f"GPUInfo/MemLoad/GPU{i}", gpu.memoryUsed / gpu.memoryTotal)
+        training_stats.report(f"GPUInfo/MemTotal/GPU{i}", gpu.memoryTotal)
 
 #----------------------------------------------------------------------------
 
@@ -364,6 +374,9 @@ def training_loop(
             # Phase done.
             if phase.end_event is not None:
                 phase.end_event.record(torch.cuda.current_stream(device))
+
+        # report gpu stats
+        report_gpuinfo()
 
         # Update G_ema.
         with torch.autograd.profiler.record_function('Gema'):
