@@ -139,7 +139,7 @@ class ECUTWeightLoss(Loss):
             weights = [ 1 / n_layers for i in range(0, n_layers) ]
 
         for f_real, f_fake, crit, aw, weight, _ in zip(feat_real_pool, feat_fake_pool, self.criterionNCE, attn_weight, weights, self.nce_layers):
-            loss = crit(f_real, f_fake, aw)
+            loss = crit(f_fake, f_real, aw)
             total_nce_loss += loss.mean() * weight
         
         return total_nce_loss, attn_weight_var
