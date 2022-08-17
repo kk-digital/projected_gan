@@ -135,6 +135,7 @@ def parse_comma_separated_list(s):
 @click.option('--nce_sim_pnorm',    help='if greater than 0, using pnorm to compute similarity instead of consine similarity', type=float,  default=0.0, show_default=True)
 
 # SMap
+@click.option('--attn_real_fake', help='use both real and fake features to compute attention', is_flag=True)
 @click.option('--attn_layers',   help='smap attn layers',           metavar='INT',   type=click.IntRange(min=1, max=5), default=2)
 @click.option('--map_layers',    help='smap map layers',           metavar='INT',   type=click.IntRange(min=1, max=5), default=2)
 @click.option('--attn_net',      help='smap attn net type',          type=click.Choice(['conv1x1', 'resnet', 'none']), default='conv1x1', show_default=True)
@@ -317,6 +318,7 @@ def main(**kwargs):
     c.loss_kwargs.arc_path = opts.arc_path
     c.loss_kwargs.attn_net = opts.attn_net
     c.loss_kwargs.map_net = opts.map_net
+    c.loss_kwargs.attn_real_fake = opts.attn_real_fake
     c.loss_kwargs.attn_layers = opts.attn_layers
     c.loss_kwargs.map_layers = opts.map_layers
     c.loss_kwargs.attn_temperature = opts.attn_temperature

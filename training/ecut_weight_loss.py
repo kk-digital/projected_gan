@@ -28,7 +28,7 @@ class Loss:
 
 class ECUTWeightLoss(Loss):
     def __init__(self, device, G, D, F, G_ema, resolution: int,
-                 feature_net: str, nce_idt: bool, num_patches: int,
+                 feature_net: str, nce_idt: bool, num_patches: int, attn_real_fake: bool,
                  adaptive_loss: bool, attn_net: str, attn_layers: str, attn_temperature: float,
                  lambda_GAN: float=1.0, lambda_NCE: float=1.0, lambda_identity: float = 0,
                  blur_init_sigma=0, blur_fade_kimg=0, **kwargs):
@@ -41,6 +41,7 @@ class ECUTWeightLoss(Loss):
         self.resolution = resolution
         self.nce_idt = nce_idt
         self.num_patches = num_patches
+        self.attn_real_fake = attn_real_fake
         self.lambda_GAN = lambda_GAN
         self.lambda_NCE = lambda_NCE
         self.lambda_identity = lambda_identity
@@ -104,6 +105,8 @@ class ECUTWeightLoss(Loss):
         attn_feat, nce_feat = self.get_nce_attn(feat)
         self.F.create_mlp(nce_feat)
         self.F.attn_net = PMapAttention(attn_net=self.attn_net, atttn_layer=self.attn_layers, attn_temperature=self.attn_temperature)
+        if self.attn_real_fake:
+            attn_feat = list(map(lambda v: torch.cat([v,v], dim=1), attn_feat))
         self.F.attn_net.setup(nce_feat, attn_feat)
         if self.adaptive_loss:
             loss_weights = Parameter(torch.Tensor(len(nce_feat)))
@@ -113,13 +116,18 @@ class ECUTWeightLoss(Loss):
     def calculate_NCE_loss(self, feat_net: torch.nn.Module, real, fake):
         n_layers = len(self.nce_layers)
         feat_real = feat_net(real, self.feat_layers, encode_only=True)
-        feat_fake = feat_net(fake, self.nce_layers, encode_only=True)
+        feat_fake = feat_net(fake, self.feat_layers if self.attn_real_fake else self.nce_layers, encode_only=True)
         if isinstance(feat_real, tuple):
             feat_real = feat_real[1]
         if isinstance(feat_fake, tuple):
             feat_fake = feat_fake[1]
         attn_real, feat_real = self.get_nce_attn(feat_real)
-        attn_weight_hw = self.F.attn_net(attn_real)
+        if (self.attn_real_fake):
+            attn_fake, feat_fake = self.get_nce_attn(feat_fake)
+            attn_feat = list(map(lambda r: torch.cat(r, dim=1), zip(attn_real, attn_fake)))
+        else:
+            attn_feat = attn_real
+        attn_weight_hw = self.F.attn_net(attn_feat)
 
         feat_real_pool, sample_ids = self.F(feat_real, self.num_patches, None)
         feat_fake_pool, _ = self.F(feat_fake, self.num_patches, sample_ids)
