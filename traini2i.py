@@ -141,6 +141,7 @@ def parse_comma_separated_list(s):
 @click.option('--attn_net',      help='smap attn net type',          type=click.Choice(['conv1x1', 'resnet', 'none']), default='conv1x1', show_default=True)
 @click.option('--map_net',      help='smap map net type',          type=click.Choice(['conv1x1', 'resnet']), default='resnet', show_default=True)
 @click.option('--attn_temperature', help='smap attn temperature',  metavar='INT',   type=click.FloatRange(min=0.0001, max=10), default=8)
+@click.option('--sigmoid_attn',          help='using sigmoid to normalize weights into [0,1]', is_flag=True)
 
 # Spatial-Correlative
 @click.option('--sc_layers',       help='feature layers',          type=str,        default=None,                 show_default=True)
@@ -155,6 +156,7 @@ def parse_comma_separated_list(s):
 @click.option('--lambda_GAN',         type=float,                   default=1.0, show_default=True)
 @click.option('--lambda_GAN_random',  type=float,                   default=0.0, show_default=True)
 @click.option('--lambda_wvar',        type=float,                   default=1.0, show_default=True)
+@click.option('--lambda_abdis',       type=float,                   default=1.0, show_default=True)
 @click.option('--lambda_NCE',         type=float,                   default=1.0, show_default=True)
 @click.option('--lambda_PMap',         type=float,                   default=1.0, show_default=True)
 @click.option('--lambda_SC',          type=float,                   default=1.0, show_default=True)
@@ -176,7 +178,7 @@ def parse_comma_separated_list(s):
 @click.option('--logger_queuesize', help='logger message queue size, for reducing request frequency', type=click.IntRange(min=1) , default=10)
 @click.option('--logger_prefix',    help='logger group prefix',                                       type=str,  default="", show_default=True)
 @click.option('--logger_priority',  help='enable logger message priority',                            type=bool, default=False, show_default=True)
-@click.option('--disable_logger',   help='logger endpoint',                                           type=bool, default=False, show_default=True)
+@click.option('--disable_logger',          help='disable logger', is_flag=True)
 
 # Optional features.
 @click.option('--resume',       help='Resume from given network pickle', metavar='[PATH|URL]',  type=str)
@@ -312,6 +314,7 @@ def main(**kwargs):
     c.loss_kwargs.lambda_GAN_random = opts.lambda_gan_random
     c.loss_kwargs.lambda_NCE = opts.lambda_nce
     c.loss_kwargs.lambda_wvar = opts.lambda_wvar
+    c.loss_kwargs.lambda_abdis = opts.lambda_abdis
     c.loss_kwargs.lambda_PMap = opts.lambda_pmap
     c.loss_kwargs.lambda_SC = opts.lambda_sc
     c.loss_kwargs.lambda_identity = opts.lambda_identity
@@ -324,6 +327,7 @@ def main(**kwargs):
     c.loss_kwargs.attn_layers = opts.attn_layers
     c.loss_kwargs.map_layers = opts.map_layers
     c.loss_kwargs.attn_temperature = opts.attn_temperature
+    c.loss_kwargs.sigmoid_attn = opts.sigmoid_attn
 
     c.D_kwargs = dnnlib.EasyDict(
         class_name=opts.netd,
