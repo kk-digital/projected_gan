@@ -154,6 +154,7 @@ def parse_comma_separated_list(s):
 # loss weight
 @click.option('--lambda_GAN',         type=float,                   default=1.0, show_default=True)
 @click.option('--lambda_GAN_random',  type=float,                   default=0.0, show_default=True)
+@click.option('--lambda_wvar',        type=float,                   default=1.0, show_default=True)
 @click.option('--lambda_NCE',         type=float,                   default=1.0, show_default=True)
 @click.option('--lambda_PMap',         type=float,                   default=1.0, show_default=True)
 @click.option('--lambda_SC',          type=float,                   default=1.0, show_default=True)
@@ -310,6 +311,7 @@ def main(**kwargs):
     c.loss_kwargs.lambda_GAN = opts.lambda_gan
     c.loss_kwargs.lambda_GAN_random = opts.lambda_gan_random
     c.loss_kwargs.lambda_NCE = opts.lambda_nce
+    c.loss_kwargs.lambda_wvar = opts.lambda_wvar
     c.loss_kwargs.lambda_PMap = opts.lambda_pmap
     c.loss_kwargs.lambda_SC = opts.lambda_sc
     c.loss_kwargs.lambda_identity = opts.lambda_identity

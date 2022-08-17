@@ -31,6 +31,7 @@ class ECUTWeightLoss(Loss):
                  feature_net: str, nce_idt: bool, num_patches: int, attn_real_fake: bool,
                  adaptive_loss: bool, attn_net: str, attn_layers: str, attn_temperature: float,
                  lambda_GAN: float=1.0, lambda_NCE: float=1.0, lambda_identity: float = 0,
+                 lambda_wvar: float=1.0,
                  blur_init_sigma=0, blur_fade_kimg=0, **kwargs):
         super().__init__()
         self.device = device
@@ -44,6 +45,7 @@ class ECUTWeightLoss(Loss):
         self.attn_real_fake = attn_real_fake
         self.lambda_GAN = lambda_GAN
         self.lambda_NCE = lambda_NCE
+        self.lambda_wvar = lambda_wvar
         self.lambda_identity = lambda_identity
         self.blur_init_sigma = blur_init_sigma
         self.blur_fade_kimg = blur_fade_kimg
@@ -224,7 +226,7 @@ class ECUTWeightLoss(Loss):
                                     image_blend_normal(visualize_feature(wh_idt[2]), real_A),
                                 ], 10)
                             save_image(out, "debug_output_idt.png")
-                    loss_Gmain = loss_Gmain + loss_Gmain_NCE * self.lambda_NCE + loss_weights_var
+                    loss_Gmain = loss_Gmain + loss_Gmain_NCE * self.lambda_NCE + loss_weights_var * self.lambda_wvar
 
                 training_stats.report('Loss/G/loss', loss_Gmain)
 
