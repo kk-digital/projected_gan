@@ -109,19 +109,19 @@ class ECUTWeightLoss(Loss):
             loss_weights.data.fill_(1 / len(nce_feat))
             self.F.loss_weights = loss_weights
 
-    def calculate_NCE_loss(self, feat_net: torch.nn.Module, src, tgt):
+    def calculate_NCE_loss(self, feat_net: torch.nn.Module, real, fake):
         n_layers = len(self.nce_layers)
-        feat_q = feat_net(tgt, self.feat_layers, encode_only=True)
-        feat_k = feat_net(src, self.nce_layers, encode_only=True)
-        if isinstance(feat_q, tuple):
-            feat_q = feat_q[1]
-        if isinstance(feat_k, tuple):
-            feat_k = feat_k[1]
-        attn_q, feat_q = self.get_nce_attn(feat_q)
-        attn_weight_hw = self.F.attn_net(attn_q)
+        feat_real = feat_net(real, self.feat_layers, encode_only=True)
+        feat_fake = feat_net(fake, self.nce_layers, encode_only=True)
+        if isinstance(feat_real, tuple):
+            feat_real = feat_real[1]
+        if isinstance(feat_fake, tuple):
+            feat_fake = feat_fake[1]
+        attn_real, feat_real = self.get_nce_attn(feat_real)
+        attn_weight_hw = self.F.attn_net(attn_real)
 
-        feat_k_pool, sample_ids = self.F(feat_k, self.num_patches, None)
-        feat_q_pool, _ = self.F(feat_q, self.num_patches, sample_ids)
+        feat_real_pool, sample_ids = self.F(feat_real, self.num_patches, None)
+        feat_fake_pool, _ = self.F(feat_fake, self.num_patches, sample_ids)
         attn_weight = []
         attn_weight_var = 0
         for aw, ids in zip(attn_weight_hw, sample_ids):
@@ -138,8 +138,8 @@ class ECUTWeightLoss(Loss):
         else:
             weights = [ 1 / n_layers for i in range(0, n_layers) ]
 
-        for f_q, f_k, crit, aw, weight, _ in zip(feat_q_pool, feat_k_pool, self.criterionNCE, attn_weight, weights, self.nce_layers):
-            loss = crit(f_q, f_k, aw)
+        for f_real, f_fake, crit, aw, weight, _ in zip(feat_real_pool, feat_fake_pool, self.criterionNCE, attn_weight, weights, self.nce_layers):
+            loss = crit(f_real, f_fake, aw)
             total_nce_loss += loss.mean() * weight
         
         return total_nce_loss, attn_weight_var
