@@ -24,11 +24,13 @@ def linear(*args, **kwargs):
     return spectral_norm(nn.Linear(*args, **kwargs))
 
 
-def NormLayer(c, mode='batch'):
+def NormLayer(c, mode='instance'):
     if mode == 'group':
         return nn.GroupNorm(c//2, c)
     elif mode == 'batch':
         return nn.BatchNorm2d(c)
+    elif mode == 'instance':
+        return nn.InstanceNorm2d(c)
 
 
 ### Activations
