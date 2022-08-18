@@ -1,22 +1,24 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.nn.utils import spectral_norm
 
 
 class CamWeightNet(nn.Module):
-    def __init__(self, ap_weight: float=0.5, sigmoid: bool=False):
+    def __init__(self, ap_weight: float=0.5, sigmoid: bool=False, detach: bool=False):
         super().__init__()
         assert ap_weight >= 0 and ap_weight <= 1
         self.ap_weight = ap_weight
         self.sigmoid_act = sigmoid
+        self.detach = detach
     
     def setup(self, attn_feats, feats):
         assert len(attn_feats) == len(feats)
         for i, attn_feat, feat in zip(range(len(attn_feats)), attn_feats, feats):
             _, _, ah, aw = attn_feat.shape
             _, _, h, w = feat.shape
-            gap_ln = nn.Linear(attn_feat.size(1), 1)
-            gmp_ln = nn.Linear(attn_feat.size(1), 1)
+            gap_ln = spectral_norm(nn.Linear(attn_feat.size(1), 1))
+            gmp_ln = spectral_norm(nn.Linear(attn_feat.size(1), 1))
             setattr(self, f'gap_ln_{i}', gap_ln)
             setattr(self, f'gmp_ln_{i}', gmp_ln)
             setattr(self, f'interp_{i}', ah != h or aw != w)
@@ -40,11 +42,10 @@ class CamWeightNet(nn.Module):
             logits = torch.cat([gap_logits, gmp_logits], dim=1)
             logits_list.append(logits)
 
-            permute_attn: torch.Tensor = attn_feat.permute(0, 2, 3, 1).contiguous()
-            gap_map = gap_ln(permute_attn)
-            gmp_map = gmp_ln(permute_attn)
-            gap_map = gap_map.permute(0, 3, 1, 2).contiguous()
-            gmp_map = gmp_map.permute(0, 3, 1, 2).contiguous()
+            gap_ln_param = list(gap_ln.parameters())[1].unsqueeze(2).unsqueeze(3)
+            gmp_ln_param = list(gmp_ln.parameters())[1].unsqueeze(2).unsqueeze(3)
+            gap_map = (attn_feat * gap_ln_param).sum(dim=1).unsqueeze(1)
+            gmp_map = (attn_feat * gmp_ln_param).sum(dim=1).unsqueeze(1)
 
             if should_interp:
                 h, w = getattr(self, f'shape_{i}')
@@ -62,6 +63,15 @@ class CamWeightNet(nn.Module):
                 attnmap = attnmap - amin.unsqueeze(1).unsqueeze(2)
                 amax = attnmap.max(dim=2).values.max(dim=1).values
                 attnmap = attnmap / amax.unsqueeze(1).unsqueeze(2)
+            
+            if self.detach:
+                attnmap = attnmap.detach()
+            else:
+                oldshape= attnmap.shape
+                attnmap = attnmap.view(attnmap.size(0), -1)
+                attnmap = F.normalize(attnmap, p=2, dim=1)
+                attnmap = attnmap.view(oldshape)
+
             attn_map_list.append(attnmap)
         
         return attn_map_list, logits_list

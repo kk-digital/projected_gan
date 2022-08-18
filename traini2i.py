@@ -142,6 +142,7 @@ def parse_comma_separated_list(s):
 @click.option('--map_net',      help='smap map net type',          type=click.Choice(['conv1x1', 'resnet']), default='resnet', show_default=True)
 @click.option('--attn_temperature', help='smap attn temperature',  metavar='INT',   type=click.FloatRange(min=0.0001, max=10), default=8)
 @click.option('--sigmoid_attn',          help='using sigmoid to normalize weights into [0,1]', is_flag=True)
+@click.option('--attn_detach',          help='detach attention map', is_flag=True)
 
 # Spatial-Correlative
 @click.option('--sc_layers',       help='feature layers',          type=str,        default=None,                 show_default=True)
@@ -328,6 +329,7 @@ def main(**kwargs):
     c.loss_kwargs.map_layers = opts.map_layers
     c.loss_kwargs.attn_temperature = opts.attn_temperature
     c.loss_kwargs.sigmoid_attn = opts.sigmoid_attn
+    c.loss_kwargs.attn_detach = opts.attn_detach
 
     c.D_kwargs = dnnlib.EasyDict(
         class_name=opts.netd,

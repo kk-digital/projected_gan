@@ -30,6 +30,7 @@ class ECUTCAMWeightLoss(Loss):
     def __init__(self, device, G, D, F, G_ema, resolution: int,
                  feature_net: str, nce_idt: bool, num_patches: int,
                  adaptive_loss: bool, lambda_abdis: float=1.0, sigmoid_attn: bool = False,
+                 attn_detach: bool = True,
                  lambda_GAN: float=1.0, lambda_NCE: float=1.0, lambda_identity: float = 0,
                  blur_init_sigma=0, blur_fade_kimg=0, **kwargs):
         super().__init__()
@@ -40,6 +41,7 @@ class ECUTCAMWeightLoss(Loss):
         self.F = F
         self.resolution = resolution
         self.sigmoid_attn = sigmoid_attn
+        self.attn_detach = attn_detach
         self.nce_idt = nce_idt
         self.num_patches = num_patches
         self.lambda_GAN = lambda_GAN
@@ -103,7 +105,7 @@ class ECUTCAMWeightLoss(Loss):
         
         attn_feat, nce_feat = self.get_nce_attn(feat)
         self.F.create_mlp(nce_feat)
-        self.F.attn_net = CamWeightNet(ap_weight=0.5, sigmoid=self.sigmoid_attn)
+        self.F.attn_net = CamWeightNet(ap_weight=0.5, sigmoid=self.sigmoid_attn, detach=self.attn_detach)
         self.F.attn_net.setup(attn_feat, nce_feat)
         if self.adaptive_loss:
             loss_weights = Parameter(torch.Tensor(len(nce_feat)))
@@ -189,8 +191,8 @@ class ECUTCAMWeightLoss(Loss):
                 attn_B, logits_real_B = self.F.attn_net(attn_real_B)
                 ab_dis_loss = 0
                 for logit_A, logit_B in zip(logits_real_A, logits_real_B):
-                    ab_dis_loss += self.BCELogit_loss(logit_A, torch.ones_like(logit_A, device=logit_A.device))
-                    ab_dis_loss += self.BCELogit_loss(logit_B, torch.zeros_like(logit_A, device=logit_A.device))
+                    ab_dis_loss += (-logit_A).mean()
+                    ab_dis_loss += logit_B.mean()
                 training_stats.report('Loss/G/abdis', ab_dis_loss)
 
                 if self.lambda_NCE > 0:
