@@ -224,6 +224,9 @@ def training_loop(
     F = dnnlib.util.construct_class_by_name(**F_kwargs).train().requires_grad_(False).to(device) # subclass of torch.nn.Module
     G_ema = copy.deepcopy(G).eval()
 
+    loss = dnnlib.util.construct_class_by_name(device=device, G=G, G_ema=G_ema, D=D, F=F, resolution=training_set.resolution, **loss_kwargs) # subclass of training.loss.Loss
+    G_ema = copy.deepcopy(G).eval()
+
     # Check for existing checkpoint
     ckpt_pkl = None
     if restart_every > 0 and os.path.isfile(misc.get_ckpt_path(run_dir)):
@@ -240,7 +243,6 @@ def training_loop(
     # Setup training phases.
     if rank == 0:
         print('Setting up training phases...')
-    loss = dnnlib.util.construct_class_by_name(device=device, G=G, G_ema=G_ema, D=D, F=F, resolution=training_set.resolution, **loss_kwargs) # subclass of training.loss.Loss
 
     # Print network summary tables.
     if rank == 0:
