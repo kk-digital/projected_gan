@@ -66,12 +66,11 @@ class CamWeightNet(nn.Module):
             
             if self.detach:
                 attnmap = attnmap.detach()
-            else:
-                oldshape= attnmap.shape
-                attnmap = attnmap.view(attnmap.size(0), -1)
-                attnmap = F.normalize(attnmap, p=2, dim=1)
-                attnmap = attnmap.view(oldshape)
 
+            oldshape= attnmap.shape
+            attnmap = attnmap.view(attnmap.size(0), -1)
+            attnmap = F.normalize(attnmap, p=2, dim=1)
+            attnmap = attnmap.view(oldshape)
             attn_map_list.append(attnmap)
         
         return attn_map_list, logits_list
