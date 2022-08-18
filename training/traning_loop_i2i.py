@@ -15,6 +15,7 @@
 import io
 import itertools
 import os
+from random import shuffle
 import time
 import copy
 import json
@@ -292,6 +293,21 @@ def training_loop(
         save_image_grid(imagesA, images, os.path.join(run_dir, 'fakes_init.png'), drange=[-1,1], grid_size=grid_size)
         del images_A
 
+    def sample_images(tick: int):
+        if logger is None:
+            return
+        imgs_A_idx = list(range(len(imagesA)))
+        shuffle(imgs_A_idx)
+        imgs_A_idx = imgs_A_idx[:5]
+        imgs_A = imagesA[imgs_A_idx]
+        images_A = torch.from_numpy(imgs_A).to(device).split(batch_gpu)
+        images = torch.cat([G_ema(img).cpu() for img in images_A]).numpy()
+        buf = io.BytesIO()
+        save_image_grid(imgs_A, images, buf, drange=[-1,1], grid_size=(5,1))
+        filename = f'tick_{tick}.png'
+        logger.sendBlobFile(buf, filename, f"/validation_images/{desc}/{filename}", f"{desc}/ImageSamplePerTick")
+        del images_A
+
     # Initialize logs.
     if rank == 0:
         print('Initializing logs...')
@@ -555,6 +571,7 @@ def training_loop(
                     data[key] = val
                 logger.send(data, group=f'{desc}/{tbl}')
             logger.flush()
+            sample_images(int(cur_tick))
         if progress_fn is not None:
             progress_fn(cur_nimg // 1000, total_kimg)
 
