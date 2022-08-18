@@ -14,17 +14,21 @@ def visualize_feature(x, size = 256):
     if len(x.shape) > 4 or len(x.shape) < 2:
         raise NotImplemented()
     elif len(x.shape) == 4:
+        assert x.shape[1] == 1
+        cams = []
+        for i in range(x.shape[0]):
+            ki = visualize_feature(x[i][0], size)
+            cams.append(ki)
+        return np.stack(cams, axis=0)
+    elif len(x.shape) == 3:
         cams = []
         for i in range(x.shape[0]):
             ki = visualize_feature(x[i], size)
             cams.append(ki)
         return np.stack(cams, axis=0)
-    elif len(x.shape) == 3:
-        assert x.shape[0] == 1
-        return visualize_feature(x[0], size)
 
     x = x - np.min(x)
-    cam_img = x / np.max(x)
+    cam_img = x / (np.max(x) + 1e-6)
     cam_img = np.uint8(255 * cam_img)
     cam_img = cv2.resize(cam_img, (size, size), interpolation=2)
     cam_img = cv2.applyColorMap(cam_img, cv2.COLORMAP_JET).transpose(2, 0, 1)
