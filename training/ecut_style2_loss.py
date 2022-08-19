@@ -8,6 +8,7 @@
 #
 # modified by Axel Sauer for "Projected GANs Converge Faster"
 #
+from functools import reduce
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -20,8 +21,13 @@ from torch_utils.ops import upfirdn2d
 from models import losses
 from models.patchnce import PatchNCELoss
 from models.gnr_networks import LatDiscriminator
-from models.fastae_networks import Encoder, Generator
+from models.fastae_networks import Encoder as Ev1, Generator as Gv1
+from models.fastae_v2_networks import Encoder as Ev2, Generator as Gv2
 
+valid_gen_encoder = [
+    (Gv1, Ev1),
+    (Gv2, Ev2),
+]
 
 class Loss:
     def accumulate_gradients(self, phase, real_A, real_B, gain, cur_nimg): # to be overridden by subclass
@@ -36,8 +42,8 @@ class ECUTStyle2Loss(Loss):
                  blur_init_sigma=0, blur_fade_kimg=0, **kwargs):
         super().__init__()
         self.device = device
-        assert isinstance(G, Generator)
-        self.G: Generator = G
+        assert reduce(lambda a, b: a or b, map(lambda u: isinstance(G, u[0]), valid_gen_encoder))
+        self.G: Gv1 = G
         self.D = D
         self.F = F
         self.resolution = resolution
@@ -90,7 +96,8 @@ class ECUTStyle2Loss(Loss):
             feat = feat[1]
         self.F.create_mlp(feat)
         self.D.latent_dis = LatDiscriminator(self.latent_dim).to(self.device).requires_grad_(False)
-        self.G.reverse_se = Encoder(self.G.latent_dim, self.G.ngf, self.G.nc, self.G.img_resolution, self.G.lite).to(self.device).requires_grad_(False)
+        encoder = reduce(lambda a, b: a or b, map(lambda u: isinstance(self.G, u[0]) and u[1], valid_gen_encoder))
+        self.G.reverse_se = encoder(self.G.latent_dim, self.G.ngf, self.G.nc, self.G.img_resolution, self.G.lite).to(self.device).requires_grad_(False)
 
     def calculate_NCE_loss(self, feat_net: torch.nn.Module, src, tgt):
         n_layers = len(self.nce_layers)
