@@ -497,7 +497,7 @@ def training_loop(
                pickle.dump(snapshot_data, f)
             ckpt_p = os.path.dirname(snapshot_pkl)
             ckpt_n = os.path.basename(snapshot_pkl)
-            with open(os.path.join(ckpt_p, f'{cur_tick}_{ckpt_n}')) as f:
+            with open(os.path.join(ckpt_p, f'{cur_tick}-{ckpt_n}'), 'wb') as f:
                pickle.dump(snapshot_data, f)
 
         # Evaluate metrics.
