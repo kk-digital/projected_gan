@@ -23,10 +23,12 @@ from models.patchnce import PatchNCELoss
 from models.gnr_networks import LatDiscriminator
 from models.fastae_networks import Encoder as Ev1, Generator as Gv1
 from models.fastae_v2_networks import Encoder as Ev2, Generator as Gv2
+from models.fastae_v3_networks import Encoder as Ev3, Generator as Gv3
 
 valid_gen_encoder = [
     (Gv1, Ev1),
     (Gv2, Ev2),
+    (Gv3, Ev3),
 ]
 
 class Loss:
