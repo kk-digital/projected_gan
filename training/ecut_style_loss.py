@@ -31,7 +31,7 @@ class ECUTStyleLoss(Loss):
     def __init__(self, device, G, D, F, resolution: int,
                  nce_layers: list, feature_net: str, nce_idt: bool, num_patches: int,
                  lambda_GAN: float=1.0, lambda_NCE: float=1.0, lambda_identity: float = 0,
-                 lambda_style_consis: float=10.0, lambda_style_recon: float = 3,
+                 lambda_style_consis: float=50.0, lambda_style_recon: float = 5,
                  blur_init_sigma=0, blur_fade_kimg=0, **kwargs):
         super().__init__()
         self.device = device
@@ -138,6 +138,7 @@ class ECUTStyleLoss(Loss):
             # Gmain: Maximize logits for generated images.
             with torch.autograd.profiler.record_function('Gmain_forward'):
                 aug_A = self.aug(real_A)
+                aug_B = self.aug(real_B)
                 A = self.aug(real_A[[np.random.randint(batch_size)]].expand_as(real_A))
 
                 A_content, A_style = self.G.encode(A)
@@ -186,7 +187,7 @@ class ECUTStyleLoss(Loss):
                     training_stats.report('Loss/G/StyleReconstruction', loss_Gmain_style_recon)
                     loss_Gmain = loss_Gmain + loss_Gmain_style_recon * self.lambda_style_recon
 
-                self.aug_A = aug_A
+                self.aug_B = aug_B.detach()
                 self.fake_B = fake_B.detach()
                 self.rand_A_style = rand_A_style
                 self.aug_A_style =aug_A_style.detach()
@@ -215,7 +216,7 @@ class ECUTStyleLoss(Loss):
 
             # Dmain: Maximize logits for real images.
             with torch.autograd.profiler.record_function('Dreal_forward'):
-                real_logits = self.run_D(self.aug_A, blur_sigma=blur_sigma)
+                real_logits = self.run_D(self.aug_B, blur_sigma=blur_sigma)
                 loss_Dreal = (F.relu(torch.ones_like(real_logits) - real_logits)).mean()
 
                 style_real_logits = torch.cat(self.D.latent_dis(self.rand_A_style), dim=1)
