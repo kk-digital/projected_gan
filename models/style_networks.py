@@ -389,7 +389,7 @@ class Generator(nn.Module):
         assert layers is not None
         feats = []
         feat = img
-        layers = list(set(layers))
+        layers.sort()
         last_layer = layers[-1]
         for layer_id, layer in enumerate(self.encoder.content_encoder.model):
             feat = layer(feat)
@@ -406,7 +406,6 @@ class Generator(nn.Module):
         style = decoder.mapping(z)
         params = decoder.nparams_out(style)
 
-        feat = input
         for layer_id, layer in enumerate(decoder.model):
             if layer_id in decoder.adaIN_layers:
                 sstart, slen = decoder.style_start_and_len[layer_id]

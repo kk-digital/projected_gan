@@ -459,7 +459,7 @@ class Generator(nn.Module):
         assert layers is not None
         feats = []
         feat = img
-        layers = list(set(layers))
+        layers.sort()
         last_layer = layers[-1]
         for layer_id, layer in enumerate(self.encoder.content_encoder.layers):
             feat = layer(feat)

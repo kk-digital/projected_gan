@@ -75,7 +75,10 @@ class ECUTStyle2Loss(Loss):
             self.netPre = losses.VGG16().to(self.device)
         elif feature_net == 'learned':
             self.netPre = self.G
-            nce_layers = [2,4,6,8]
+            if isinstance(self.G, Gv3):
+                nce_layers = [2,4,6,8]
+            elif isinstance(self.G, Gv4):
+                nce_layers = [2,6,9,12,14,18]
         else:
             raise NotImplementedError(feature_net)
 
