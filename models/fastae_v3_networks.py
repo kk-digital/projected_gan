@@ -450,7 +450,68 @@ class Generator(nn.Module):
     def decode(self, content, style):
         return self.decoder(content, style)
     
-    def forward(self, img, z=None):
-        content = self.content_encode(img)
-        z = z if z is not None else self.style_encode(img)
-        return self.decode(content, z)
+    def forward(self, img, layers: list=None, z=None, encode_only: bool=False):
+        if not encode_only:
+            content = self.content_encode(img)
+            z = z if z is not None else self.style_encode(img)
+            return self.decode(content, z)
+        
+        assert layers is not None
+        feats = []
+        feat = img
+        layers = list(set(layers))
+        last_layer = layers[-1]
+        for layer_id, layer in enumerate(self.encoder.content_encoder.layers):
+            feat = layer(feat)
+            if layer_id in layers:
+                feats.append(feat)
+            if layer_id >= last_layer:
+                return feats
+
+        if z is None:
+            z = torch.randn([img.size(0), self.latent_dim]).to(img.device)
+
+        decoder = self.decoder
+        style = decoder.mapping(z)
+
+        res1_32 = decoder.res1(feat, style)
+        layer_id = len(self.encoder.content_encoder.layers)
+        if layer_id in layers:
+            feats.append(res1_32)
+        if layer_id >= last_layer:
+            return feats
+
+        res2_32 = decoder.res2(res1_32, style)
+        layer_id = layer_id + 1
+        if layer_id in layers:
+            feats.append(res2_32)
+        if layer_id >= last_layer:
+            return feats
+
+        res3_32 = decoder.res3(res2_32, style)
+        layer_id = layer_id + 1
+        if layer_id in layers:
+            feats.append(res3_32)
+        if layer_id >= last_layer:
+            return feats
+
+        feat_64 = decoder.se_64(feat, decoder.sfeat_64(res3_32, style))
+        layer_id = layer_id + 1
+        if layer_id in layers:
+            feats.append(feat_64)
+        if layer_id >= last_layer:
+            return feats
+
+        feat_128 = decoder.se_128(res1_32, decoder.sfeat_128(feat_64, style))
+        layer_id = layer_id + 1
+        if layer_id in layers:
+            feats.append(feat_128)
+        if layer_id >= last_layer:
+            return feats
+
+        feat_256 = decoder.se_256(res2_32, decoder.sfeat_256(feat_128, style))
+        layer_id = layer_id + 1
+        if layer_id in layers:
+            feats.append(feat_256)
+
+        return feats
