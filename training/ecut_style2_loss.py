@@ -24,11 +24,13 @@ from models.gnr_networks import LatDiscriminator
 from models.fastae_networks import Encoder as Ev1, Generator as Gv1
 from models.fastae_v2_networks import Encoder as Ev2, Generator as Gv2
 from models.fastae_v3_networks import Encoder as Ev3, Generator as Gv3
+from models.style_networks import Encoder as Ev4, Generator as Gv4
 
 valid_gen_encoder = [
     (Gv1, Ev1),
     (Gv2, Ev2),
     (Gv3, Ev3),
+    (Gv4, Ev4),
 ]
 
 class Loss:
@@ -100,7 +102,9 @@ class ECUTStyle2Loss(Loss):
         self.F.create_mlp(feat)
         self.D.latent_dis = LatDiscriminator(self.latent_dim).to(self.device).requires_grad_(False)
         encoder = reduce(lambda a, b: a or b, map(lambda u: isinstance(self.G, u[0]) and u[1], valid_gen_encoder))
-        self.G.reverse_se = encoder(self.G.latent_dim, self.G.ngf, self.G.nc, self.G.img_resolution, self.G.lite).to(self.device).requires_grad_(False)
+        self.G.reverse_se = encoder(
+            latent_dim=self.G.latent_dim, ngf=self.G.ngf, nc=self.G.nc,
+            img_resolution=self.G.img_resolution, lite=self.G.lite).to(self.device).requires_grad_(False)
 
     def calculate_NCE_loss(self, feat_net: torch.nn.Module, src, tgt):
         n_layers = len(self.nce_layers)
