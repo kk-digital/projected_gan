@@ -8,6 +8,7 @@
 #
 # modified by Axel Sauer for "Projected GANs Converge Faster"
 #
+import os
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -30,7 +31,7 @@ class ECUTCAMWeightLoss(Loss):
     def __init__(self, device, G, D, F, G_ema, resolution: int,
                  feature_net: str, nce_idt: bool, num_patches: int,
                  adaptive_loss: bool, lambda_abdis: float=1.0, sigmoid_attn: bool = False,
-                 attn_detach: bool = True,
+                 run_dir: str='.', attn_detach: bool = True,
                  lambda_GAN: float=1.0, lambda_NCE: float=1.0, lambda_identity: float = 0,
                  blur_init_sigma=0, blur_fade_kimg=0, **kwargs):
         super().__init__()
@@ -39,6 +40,7 @@ class ECUTCAMWeightLoss(Loss):
         self.G_ema = G_ema
         self.D = D
         self.F = F
+        self.run_dir = run_dir
         self.resolution = resolution
         self.sigmoid_attn = sigmoid_attn
         self.attn_detach = attn_detach
@@ -206,7 +208,7 @@ class ECUTCAMWeightLoss(Loss):
                                 image_blend_normal(visualize_feature(attn_A[1]), real_A),
                                 image_blend_normal(visualize_feature(attn_A[2]), real_A),
                             ], 10)
-                        save_image(out, "debug_output.png")
+                        save_image(out, os.path.join(self.run_dir, "debug_output.png"))
                     training_stats.report('Loss/G/NCE', loss_Gmain_NCE)
                     if self.nce_idt:
                         feats_fake_idt_B = self.netPre(fake_idt_B, self.nce_layers, encode_only=True)
@@ -221,7 +223,7 @@ class ECUTCAMWeightLoss(Loss):
                                     image_blend_normal(visualize_feature(attn_B[1]), real_B),
                                     image_blend_normal(visualize_feature(attn_B[2]), real_B),
                                 ], 10)
-                            save_image(out, "debug_output_idt.png")
+                            save_image(out, os.path.join(self.run_dir, "debug_output_idt.png"))
                     loss_Gmain = loss_Gmain + loss_Gmain_NCE * self.lambda_NCE + ab_dis_loss * self.lambda_abdis
 
                 training_stats.report('Loss/G/loss', loss_Gmain)

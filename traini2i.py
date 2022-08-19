@@ -95,6 +95,7 @@ def launch_training(c, exconf, desc, outdir, dry_run):
     logger.send(json.dumps(c, indent=2), desc + "/training options", direct=True)
     c.logger = logger
     c.desc = desc
+    c.loss_kwargs.run_dir = c.run_dir
 
     # Launch processes.
     print('Launching processes...')

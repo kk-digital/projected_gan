@@ -198,6 +198,7 @@ def training_loop(
     __BATCH_IDX__ = torch.tensor(0, dtype=torch.long, device=device)
     __PL_MEAN__ = torch.zeros([], device=device)
     best_fid = 9999
+    best_kid = 9999
 
     # Load training set.
     if rank == 0:
@@ -264,6 +265,7 @@ def training_loop(
             __BATCH_IDX__ = resume_data['progress']['batch_idx'].to(device)
             __PL_MEAN__ = resume_data['progress'].get('pl_mean', torch.zeros([])).to(device)
             best_fid = resume_data['progress']['best_fid']       # only needed for rank == 0
+            best_kid = resume_data['progress']['best_kid']       # only needed for rank == 0
 
         del resume_data
 
@@ -486,24 +488,23 @@ def training_loop(
                 'cur_tick': torch.LongTensor([cur_tick]),
                 'batch_idx': torch.LongTensor([batch_idx]),
                 'best_fid': best_fid,
+                'best_kid': best_kid,
             }
             if hasattr(loss, 'pl_mean'):
                 snapshot_data['progress']['pl_mean'] = loss.pl_mean.cpu()
 
             with open(snapshot_pkl, 'wb') as f:
-                # if hasattr(G, 'styleformer'):
-                #     fg = G.styleformer
-                #     G.styleformer = None
-                #     G_ema.styleformer = None
-                pickle.dump(snapshot_data, f)
-                # if hasattr(G, 'styleformer'):
-                #     G.styleformer = fg
-                #     G_ema.styleformer = fg
+               pickle.dump(snapshot_data, f)
+            ckpt_p = os.path.dirname(snapshot_pkl)
+            ckpt_n = os.path.basename(snapshot_pkl)
+            with open(os.path.join(ckpt_p, f'{cur_tick}_{ckpt_n}')) as f:
+               pickle.dump(snapshot_data, f)
 
         # Evaluate metrics.
         # if (snapshot_data is not None) and (len(metrics) > 0):
         if cur_tick and (snapshot_data is not None) and (len(metrics) > 0):
             fid_val = best_fid + 1
+            kid_val = best_kid + 1
             if rank == 0:
                 print('Evaluating metrics...')
             result = eval_metrics(lambda img: G_ema(img), eval_set=eval_set, cur_nimg=cur_nimg, run_dir=run_dir, device=device)
@@ -514,24 +515,23 @@ def training_loop(
                 training_stats.report('Metrics/KID', kid_val)
 
             # save best fid ckpt
-            snapshot_pkl = os.path.join(run_dir, f'best_model.pkl')
-            cur_nimg_txt = os.path.join(run_dir, f'best_nimg.txt')
+            snapshot_pkl = os.path.join(run_dir, f'best_fid_model.pkl')
+            snapshot_pkl_kid = os.path.join(run_dir, f'best_kid_model.pkl')
+            cur_nimg_txt = os.path.join(run_dir, f'best_fid_nimg.txt')
             if rank == 0:
                 if fid_val < best_fid:
                     best_fid = fid_val
 
                     with open(snapshot_pkl, 'wb') as f:
-                        # if hasattr(G, 'styleformer'):
-                            # fg = G.styleformer
-                            # G.styleformer = None
-                            # G_ema.styleformer = None
                         dill.dump(snapshot_data, f)
-                        # if hasattr(G, 'styleformer'):
-                        #     G.styleformer = fg
-                        #     G_ema.styleformer = fg
                     # save curr iteration number (directly saving it to pkl leads to problems with multi GPU)
                     with open(cur_nimg_txt, 'w') as f:
                         f.write(str(cur_nimg))
+
+                if kid_val < best_kid:
+                    best_kid = kid_val
+                    with open(snapshot_pkl_kid, 'wb') as f:
+                        dill.dump(snapshot_data, f)
 
         del snapshot_data # conserve memory
 
