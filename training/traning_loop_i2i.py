@@ -180,6 +180,7 @@ def training_loop(
     progress_fn             = None,     # Callback function for updating training progress. Called for all ranks.
     restart_every           = -1,       # Time interval in seconds to exit code
     desc: str = '',
+    use_ema_model: bool = False,
     logger: TdLogger = None,
     extra_info = {}
 ):
@@ -228,6 +229,7 @@ def training_loop(
 
     loss = dnnlib.util.construct_class_by_name(device=device, G=G, G_ema=G_ema, D=D, F=F, resolution=training_set.resolution, **loss_kwargs) # subclass of training.loss.Loss
     G_ema = copy.deepcopy(G).eval()
+    F_ema = copy.deepcopy(F).eval()
 
     # Check for existing checkpoint
     ckpt_pkl = None
@@ -237,7 +239,7 @@ def training_loop(
     # Distribute across GPUs.
     if rank == 0:
         print(f'Distributing across {num_gpus} GPUs...')
-    for module in [G, D, F, G_ema]:
+    for module in [G, D, F, G_ema, F_ema]:
         if module is not None and num_gpus > 1:
             for param in misc.params_and_buffers(module):
                 torch.distributed.broadcast(param, src=0)
@@ -257,7 +259,7 @@ def training_loop(
         print(f'Resuming from "{resume_pkl}"')
         with dnnlib.util.open_url(resume_pkl) as f:
             resume_data = legacy.load_network_pkl(f)
-        for name, module in [('G', G), ('D', D), ('F', F), ('G_ema', G_ema)]:
+        for name, module in [('G' if not use_ema_model else 'G_ema', G), ('D', D), ('F' if not use_ema_model else 'F_ema', F), ('G_ema', G_ema), ('F_ema', F_ema)]:
             misc.copy_params_and_buffers(resume_data[name], module, require_all=False)
 
         if ckpt_pkl is not None:            # Load ticks
@@ -410,6 +412,17 @@ def training_loop(
             for b_ema, b in zip(G_ema.buffers(), G.buffers()):
                 b_ema.copy_(b)
 
+        # Update F_ema
+        with torch.autograd.profiler.record_function('Fema'):
+            ema_nimg = ema_kimg * 1000
+            if ema_rampup is not None:
+                ema_nimg = min(ema_nimg, cur_nimg * ema_rampup)
+            ema_beta = 0.5 ** (batch_size / max(ema_nimg, 1e-8))
+            for p_ema, p in zip(F_ema.parameters(), F.parameters()):
+                p_ema.copy_(p.lerp(p_ema, ema_beta))
+            for b_ema, b in zip(F_ema.buffers(), F.buffers()):
+                b_ema.copy_(b)
+
         # Update state.
         cur_nimg += batch_size
         batch_idx += 1
@@ -473,7 +486,7 @@ def training_loop(
         snapshot_pkl = None
         snapshot_data = None
         if (network_snapshot_ticks is not None) and (done or cur_tick % network_snapshot_ticks == 0):
-            snapshot_data = dict(G=G, D=D, F=F, G_ema=G_ema, training_set_kwargs=dict(training_set_kwargs))
+            snapshot_data = dict(G=G, D=D, F=F, G_ema=G_ema, F_ema=F_ema, training_set_kwargs=dict(training_set_kwargs))
             for key, value in snapshot_data.items():
                 if isinstance(value, torch.nn.Module):
                     snapshot_data[key] = value

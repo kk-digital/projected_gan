@@ -128,6 +128,7 @@ def parse_comma_separated_list(s):
 @click.option('--netD',         help='discriminator', type=str, default='pg_modules.discriminator.ProjectedDiscriminator', show_default=True)
 @click.option('--netF',         help='minimize mutual information', type=str, default='models.cut_networks.PatchSampleF', show_default=True)
 @click.option('--train_loss',   help='train loss', type=str, default='training.ecut_loss.ECUTLoss', show_default=True)
+@click.option('--resume_ema',   help='using ema models to generate images, should only use on debug', is_flag=True)
 
 # PatchNCE
 @click.option('--nce_layers',       help='feature layers',          type=str,        default=None,                 show_default=True)
@@ -334,6 +335,7 @@ def main(**kwargs):
     c.loss_kwargs.attn_temperature = opts.attn_temperature
     c.loss_kwargs.sigmoid_attn = opts.sigmoid_attn
     c.loss_kwargs.attn_detach = opts.attn_detach
+    c.use_ema_model = opts.resume_ema
 
     c.D_kwargs = dnnlib.EasyDict(
         class_name=opts.netd,
