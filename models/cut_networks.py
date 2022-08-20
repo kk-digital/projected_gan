@@ -1,3 +1,4 @@
+from typing import Tuple
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -86,12 +87,32 @@ class StridedConvF(nn.Module):
             x = F.instance_norm(x)
         return self.l2_norm(x)
 
+class TensorView(nn.Module):
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+        self.args = args
+        self.kwargs = kwargs
+    
+    def forward(self, tensor: torch.Tensor):
+        return tensor.view(*self.args, **self.kwargs)
+
+class TensorPermute(nn.Module):
+    def __init__(self, *args, contiguous: bool=False, **kwargs):
+        super().__init__()
+        self.args = args
+        self.kwargs = kwargs
+        self.contiguous = contiguous
+    
+    def forward(self, tensor: torch.Tensor):
+        tensor = tensor.permute(*self.args, **self.kwargs)
+        return tensor.contiguous() if self.contiguous else tensor
 
 class PatchSampleF(nn.Module):
-    def __init__(self, mlp_layers: int=2, use_mlp=False, init_type='normal', init_gain=0.02, nc=256, gpu_ids=[], **kwargs):
+    def __init__(self, mlp_layers: int=2, max_shape: Tuple[int,int]=(256,256), use_mlp=False, init_type='normal', init_gain=0.02, nc=256, gpu_ids=[], **kwargs):
         # potential issues: currently, we use the same patch_ids for multiple images in the batch
         super(PatchSampleF, self).__init__()
         self.l2norm = Normalize(2)
+        self.max_shape = max_shape
         self.mlp_layers = mlp_layers
         self.use_mlp = use_mlp
         self.nc = nc  # hard-coded
@@ -101,8 +122,23 @@ class PatchSampleF(nn.Module):
         self.gpu_ids = gpu_ids
 
     def create_mlp(self, feats):
+        mh, mw = self.max_shape
+
         for mlp_id, feat in enumerate(feats):
-            input_nc = feat.shape[1]
+            assert len(feat.shape) == 4
+            batch, input_nc, h, w = feat.shape
+
+            pre = []
+            if h > mh or w > mw:
+                assert h % mh == 0 and w % mw == 0
+                pre += [
+                    TensorView(batch, input_nc, h // mh, mh, w // mw, mw),
+                    TensorPermute(0, 1, 2, 4, 3, 5, contiguous=True),
+                    TensorView(batch, input_nc*(h//mh)*(w//mw), mh, mw),
+                ]
+                input_nc = input_nc*(h//mh)*(w//mw)
+            setattr(self, f'pre_{mlp_id}', nn.Sequential(*pre))
+
             mlp_list = [nn.Linear(input_nc, self.nc)]
             for i in range(1, self.mlp_layers):
                 mlp_list += [  nn.ReLU(), nn.Linear(self.nc, self.nc)]
@@ -119,6 +155,9 @@ class PatchSampleF(nn.Module):
         if self.use_mlp and not self.mlp_init:
             self.create_mlp(feats)
         for feat_id, feat in enumerate(feats):
+            pre = getattr(self, f'pre_{feat_id}')
+            feat = pre(feat)
+
             B, H, W = feat.shape[0], feat.shape[2], feat.shape[3]
             feat_reshape = feat.permute(0, 2, 3, 1).flatten(1, 2)
             if num_patches > 0:

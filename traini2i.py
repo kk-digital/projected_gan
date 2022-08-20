@@ -133,6 +133,7 @@ def parse_comma_separated_list(s):
 
 # PatchNCE
 @click.option('--nce_layers',       help='feature layers',          type=str,        default=None,                 show_default=True)
+@click.option('--patch_max_shape',  help='patch grid max shape, two integer separated by comma', type=str, default='256,256', show_default=True)
 @click.option('--feature_net',      help='nce feature extraction network',          type=click.Choice(['efficientnet_lite', 'vgg16', 'learned']), default='vgg16',                 show_default=True)
 @click.option('--nce_idt',          help='identity', is_flag=True)
 @click.option('--nce_adaptive',     help='patchnce adaptive', is_flag=True)
@@ -268,6 +269,9 @@ def main(**kwargs):
     
     c.F_kwargs = dnnlib.EasyDict(class_name=opts.netf)
     c.F_kwargs.use_mlp = True
+    p_mh, p_mw = opts.patch_max_shape.split(',')
+    p_mh, p_mw = int(p_mh), int(p_mw)
+    c.F_kwargs.max_shape = (p_mh, p_mw)
     c.F_kwargs.attn_net = opts.attn_net
     c.F_kwargs.map_net = opts.map_net
     c.F_kwargs.attn_layers = opts.attn_layers
