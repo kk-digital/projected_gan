@@ -251,6 +251,7 @@ class ResnetGenerator(nn.Module):
         model += [nn.Tanh()]
 
         self.model = nn.Sequential(*model)
+        init_weights(self)
 
     def forward(self, x, layers=[], encode_only=False):
         if len(layers) > 0:

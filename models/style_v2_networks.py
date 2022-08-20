@@ -7,6 +7,7 @@ from op import fused_leaky_relu
 from .styleformer import StyleFormer
 from .cvt import CvT
 from .simple_resnet import ResNet18
+from .cyclegan_networks import init_weights
 
 
 class AdaIN(nn.Module):
@@ -367,6 +368,7 @@ class Generator(nn.Module):
         self.lite = False
         self.encoder = Encoder(latent_dim=latent_dim, ngf=ngf)
         self.decoder = Decoder(latent_dim=latent_dim, ngf=ngf)
+        init_weights(self)
     
     def style_encode(self, img):
         return self.encoder.style_encode(img)
