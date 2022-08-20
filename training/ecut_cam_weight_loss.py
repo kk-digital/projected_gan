@@ -31,7 +31,7 @@ class ECUTCAMWeightLoss(Loss):
     def __init__(self, device, G, D, F, G_ema, resolution: int,
                  feature_net: str, nce_idt: bool, num_patches: int,
                  adaptive_loss: bool, lambda_abdis: float=1.0, sigmoid_attn: bool = False,
-                 run_dir: str='.', attn_detach: bool = True,
+                 run_dir: str='.', attn_detach: bool = True, cam_attn_weight: bool=False,
                  lambda_GAN: float=1.0, lambda_NCE: float=1.0, lambda_identity: float = 0,
                  blur_init_sigma=0, blur_fade_kimg=0, **kwargs):
         super().__init__()
@@ -44,6 +44,7 @@ class ECUTCAMWeightLoss(Loss):
         self.resolution = resolution
         self.sigmoid_attn = sigmoid_attn
         self.attn_detach = attn_detach
+        self.cam_attn_weight = cam_attn_weight
         self.nce_idt = nce_idt
         self.num_patches = num_patches
         self.lambda_GAN = lambda_GAN
@@ -107,7 +108,7 @@ class ECUTCAMWeightLoss(Loss):
         
         attn_feat, nce_feat = self.get_nce_attn(feat)
         self.F.create_mlp(nce_feat)
-        self.F.attn_net = CamWeightNet(ap_weight=0.5, sigmoid=self.sigmoid_attn, detach=self.attn_detach)
+        self.F.attn_net = CamWeightNet(ap_weight=0.5, weight_multi=self.cam_attn_weight, sigmoid=self.sigmoid_attn, detach=self.attn_detach)
         self.F.attn_net.setup(attn_feat, nce_feat)
         if self.adaptive_loss:
             loss_weights = Parameter(torch.Tensor(len(nce_feat)))

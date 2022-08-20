@@ -1,28 +1,41 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.nn.parameter import Parameter
 from torch.nn.utils import spectral_norm
 
 
 class CamWeightNet(nn.Module):
-    def __init__(self, ap_weight: float=0.5, sigmoid: bool=False, detach: bool=False):
+    def __init__(self, ap_weight: float=0.5, weight_multi: bool=False, sigmoid: bool=False, detach: bool=False):
         super().__init__()
         assert ap_weight >= 0 and ap_weight <= 1
         self.ap_weight = ap_weight
+        self.weight_multi = weight_multi
         self.sigmoid_act = sigmoid
         self.detach = detach
     
     def setup(self, attn_feats, feats):
         assert len(attn_feats) == len(feats)
+        max_h, max_w = 0, 0
+        for afeat in attn_feats:
+            _, _, fh, fw = afeat.shape
+            max_h, max_w = max(max_h, fh), max(max_w, fw)
+
         for i, attn_feat, feat in zip(range(len(attn_feats)), attn_feats, feats):
             _, _, ah, aw = attn_feat.shape
             _, _, h, w = feat.shape
+            if self.weight_multi:
+                setattr(self, f'f_shape_{i}', (h, w))
+                h, w = max_h, max_w
             gap_ln = spectral_norm(nn.Linear(attn_feat.size(1), 1))
             gmp_ln = spectral_norm(nn.Linear(attn_feat.size(1), 1))
             setattr(self, f'gap_ln_{i}', gap_ln)
             setattr(self, f'gmp_ln_{i}', gmp_ln)
             setattr(self, f'interp_{i}', ah != h or aw != w)
             setattr(self, f'shape_{i}', (h, w))
+        if self.weight_multi:
+            self.rho = Parameter(torch.Tensor(1, len(attn_feats), 1, 1))
+            self.rho.data.fill_(1)
     
     def forward(self, attn_feats):
         logits_list = []
@@ -71,6 +84,19 @@ class CamWeightNet(nn.Module):
             attnmap = attnmap.view(attnmap.size(0), -1)
             attnmap = F.normalize(attnmap, p=2, dim=1)
             attnmap = attnmap.view(oldshape)
+            if self.weight_multi:
+                attnmap = attnmap.unsqueeze(1)
             attn_map_list.append(attnmap)
+
+        if self.weight_multi:
+            maps = torch.cat(attn_map_list, dim=1)
+            weights = F.normalize(torch.log(self.rho.abs() + 1), p=1, dim=1)
+            maps = weights.expand(maps.shape) * maps
+            attn_map = maps.sum(dim=1).unsqueeze(1)
+            new_attn_map_list = []
+            for i, _ in enumerate(attn_map_list):
+                true_shape = getattr(self, f'f_shape_{i}')
+                new_attn_map_list.append(F.interpolate(attn_map, true_shape).flatten(0,1))
+            attn_map_list = new_attn_map_list
         
         return attn_map_list, logits_list

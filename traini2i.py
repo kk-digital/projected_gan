@@ -150,6 +150,7 @@ def parse_comma_separated_list(s):
 @click.option('--attn_temperature', help='smap attn temperature',  metavar='INT',   type=click.FloatRange(min=0.0001, max=10), default=8)
 @click.option('--sigmoid_attn',          help='using sigmoid to normalize weights into [0,1]', is_flag=True)
 @click.option('--attn_detach',          help='detach attention map', is_flag=True)
+@click.option('--cam_attn_weight',      help='single attention map by weighting multiple layers', is_flag=True)
 
 # Spatial-Correlative
 @click.option('--sc_layers',       help='feature layers',          type=str,        default=None,                 show_default=True)
@@ -340,6 +341,7 @@ def main(**kwargs):
     c.loss_kwargs.attn_temperature = opts.attn_temperature
     c.loss_kwargs.sigmoid_attn = opts.sigmoid_attn
     c.loss_kwargs.attn_detach = opts.attn_detach
+    c.loss_kwargs.cam_attn_weight = opts.cam_attn_weight
     c.use_ema_model = opts.resume_ema
     c.sample_gpuinfo = opts.sample_gpuinfo
 
