@@ -129,6 +129,7 @@ def parse_comma_separated_list(s):
 @click.option('--netF',         help='minimize mutual information', type=str, default='models.cut_networks.PatchSampleF', show_default=True)
 @click.option('--train_loss',   help='train loss', type=str, default='training.ecut_loss.ECUTLoss', show_default=True)
 @click.option('--resume_ema',   help='using ema models to generate images, should only use on debug', is_flag=True)
+@click.option('--sample_gpuinfo',   help='sample GPU information (load and memory usage)', is_flag=True)
 
 # PatchNCE
 @click.option('--nce_layers',       help='feature layers',          type=str,        default=None,                 show_default=True)
@@ -221,7 +222,7 @@ def main(**kwargs):
     c.data_loader_kwargs = dnnlib.EasyDict(pin_memory=True, prefetch_factor=2)
 
     # logger set
-    logger = TdLogger(opts.logger_endpoint, "i2i", opts.logger_queuesize, group_prefix=opts.logger_prefix, credential=('admin', '123456'))
+    logger = TdLogger(opts.logger_endpoint, "i2i", opts.logger_queuesize, group_prefix=opts.logger_prefix, credential=('admin', '123456'), disabled=opts.disable_logger)
     exconf = dnnlib.EasyDict(logger = logger)
 
     # Training set.
@@ -336,6 +337,7 @@ def main(**kwargs):
     c.loss_kwargs.sigmoid_attn = opts.sigmoid_attn
     c.loss_kwargs.attn_detach = opts.attn_detach
     c.use_ema_model = opts.resume_ema
+    c.sample_gpuinfo = opts.sample_gpuinfo
 
     c.D_kwargs = dnnlib.EasyDict(
         class_name=opts.netd,
