@@ -181,6 +181,7 @@ def training_loop(
     restart_every           = -1,       # Time interval in seconds to exit code
     desc: str = '',
     logger: TdLogger = None,
+    extra_info = {}
 ):
     # Initialize.
     start_time = time.time()

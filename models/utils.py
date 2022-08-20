@@ -1,3 +1,5 @@
+from ast import Import
+from git import InvalidGitRepositoryError
 import torch
 import math
 import warnings
@@ -92,3 +94,14 @@ def trunc_normal_(tensor, mean=0.0, std=1.0, a=-2.0, b=2.0):
         >>> nn.init.trunc_normal_(w)
     """
     return _no_grad_trunc_normal_(tensor, mean, std, a, b)
+
+def get_current_git_hash():
+    try:
+        from git.repo import Repo
+    except ImportError:
+        return None
+    try:
+        repo = Repo(search_parent_directories=True)
+        return repo.head.object.hexsha
+    except InvalidGitRepositoryError:
+        return None

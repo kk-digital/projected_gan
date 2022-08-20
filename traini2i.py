@@ -18,6 +18,7 @@ import torch
 import legacy
 
 import dnnlib
+from models.utils import get_current_git_hash
 from tdlogger import TdLogger
 from training.traning_loop_i2i import training_loop
 from metrics import metric_main
@@ -82,6 +83,8 @@ def launch_training(c, exconf, desc, outdir, dry_run):
     print(f'Dataset transform:   {c.training_set_kwargs.preprocess}')
     print()
 
+    c.extra_info = dnnlib.EasyDict()
+    c.extra_info.githash = get_current_git_hash()
     # Dry run?
     if dry_run:
         print('Dry run; exiting.')
