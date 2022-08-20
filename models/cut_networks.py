@@ -126,15 +126,15 @@ class PatchSampleF(nn.Module):
 
         for mlp_id, feat in enumerate(feats):
             assert len(feat.shape) == 4
-            batch, input_nc, h, w = feat.shape
+            _, input_nc, h, w = feat.shape
 
             pre = []
             if h > mh or w > mw:
                 assert h % mh == 0 and w % mw == 0
                 pre += [
-                    TensorView(batch, input_nc, h // mh, mh, w // mw, mw),
+                    TensorView(-1, input_nc, h // mh, mh, w // mw, mw),
                     TensorPermute(0, 1, 2, 4, 3, 5, contiguous=True),
-                    TensorView(batch, input_nc*(h//mh)*(w//mw), mh, mw),
+                    TensorView(-1, input_nc*(h//mh)*(w//mw), mh, mw),
                 ]
                 input_nc = input_nc*(h//mh)*(w//mw)
             setattr(self, f'pre_{mlp_id}', nn.Sequential(*pre))
