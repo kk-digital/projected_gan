@@ -1,5 +1,4 @@
 from ast import Import
-from git import InvalidGitRepositoryError
 import torch
 import math
 import warnings
@@ -98,6 +97,7 @@ def trunc_normal_(tensor, mean=0.0, std=1.0, a=-2.0, b=2.0):
 def get_current_git_hash():
     try:
         from git.repo import Repo
+        from git import InvalidGitRepositoryError
     except ImportError:
         return None
     try:
