@@ -524,7 +524,7 @@ def training_loop(
             if rank == 0:
                 print('Evaluating metrics...')
             result = eval_metrics(lambda img: G_ema(img), eval_set=eval_set, cur_nimg=cur_nimg, run_dir=run_dir, device=device)
-            _, kid, fid_val = result[0]
+            kid, fid_val = result['kid'][0], result['fid']
             kid_val, _ = kid
             if rank == 0:
                 training_stats.report('Metrics/FID', fid_val)

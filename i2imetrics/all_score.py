@@ -8,6 +8,7 @@ from .fid_score import calculate_frechet_distance, calculate_frechet_distance_to
 from .kid_score import polynomial_mmd_averages
 from .models.inception import InceptionV3
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+from .fid_is_infinity.score_infinity import calculate_FID_infinity_path, calculate_IS_infinity_path
 import numpy as np
 import os
 
@@ -51,7 +52,7 @@ def calculate_scores_given_iter(
     return ans
 
 
-def calculate_scores_given_paths(paths, batch_size, device, dims, use_fid_inception=False, torch_svd=False):
+def calculate_scores_given_paths(paths, batch_size, device, dims, use_fid_inception=False, torch_svd=False, inf_version: bool=False):
     """Calculates the KID of two paths"""
     pths = []
     for p in paths:
@@ -67,18 +68,19 @@ def calculate_scores_given_paths(paths, batch_size, device, dims, use_fid_incept
     block_idx = InceptionV3.BLOCK_INDEX_BY_DIM[dims]
     model = InceptionV3([block_idx], use_fid_inception=use_fid_inception).to(device)
 
-    act_true = _compute_activations(pths[0], model, batch_size, dims, device=device)
+    real_images_path = pths[0]
+    act_true = _compute_activations(real_images_path, model, batch_size, dims, device=device)
     pths = pths[1:]
-    results = [ [] for i in enumerate(pths) ]
+    results = [ {} for i in enumerate(pths) ]
     for j, pth in enumerate(pths):
         store = results[j]
-        store.append(paths[j+1])
+        store['path'] = paths[j+1]
         print(paths[j+1])
 
         # KID
         actj = _compute_activations(pth, model, batch_size, dims, device=device)
         kid_values = polynomial_mmd_averages(act_true, actj, n_subsets=100)
-        store.append((kid_values[0].mean(), kid_values[0].std()))
+        store['kid'] = (kid_values[0].mean(), kid_values[0].std())
 
         # FID
         m1, s1 = calculate_activation_statistics(act_true)
@@ -87,7 +89,22 @@ def calculate_scores_given_paths(paths, batch_size, device, dims, use_fid_incept
             fid_value = calculate_frechet_distance_torch(m1, s1, m2, s2, device=device)
         else:
             fid_value = calculate_frechet_distance(m1, s1, m2, s2)
-        store.append(fid_value)
+        store['fid'] = fid_value
+
+    store['is_inf'] = -999
+    store['fid_inf'] = -999
+    if inf_version:
+        try:
+            # IS_inf
+            store['is_inf'] = calculate_IS_infinity_path(paths[j+1], batch_size=batch_size, min_fake=50)
+        except:
+            pass
+
+        try:
+            # FID_inf
+            store['fid_inf'] = calculate_FID_infinity_path(real_images_path, paths[j+1], batch_size=batch_size, min_fake=50)
+        except:
+            pass
 
     return results
 
@@ -117,5 +134,6 @@ if __name__ == '__main__':
     results = calculate_scores_given_paths(paths, args.batch_size, device=args.device, dims=args.dims,
                                            torch_svd=args.torch_svd,
                                            use_fid_inception=args.use_fid_inception)
-    for p, m, s in results:
-        print('[KID: %.5f (%.5f), FID: %.2f](%s)' % (m[0], m[1], s, p))
+    for vals in results:
+        kid = vals['kid']
+        print('[KID: %.5f (%.5f), FID: %.2f, FID_inf: %.2f, IS_inf: %.2f](%s)' % (kid[0], kid[1], vals['fid'], vals['fid_inf'], vals['is_inf'], vals['path']))
