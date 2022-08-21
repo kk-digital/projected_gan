@@ -179,7 +179,7 @@ def training_loop(
     abort_fn                = None,     # Callback function for determining whether to abort training. Must return consistent results across ranks.
     progress_fn             = None,     # Callback function for updating training progress. Called for all ranks.
     restart_every           = -1,       # Time interval in seconds to exit code
-    sample_gpuinfo: bool = False,
+    gpuinfo_interval: int = 1000,
     desc: str = '',
     use_ema_model: bool = False,
     logger: TdLogger = None,
@@ -400,7 +400,7 @@ def training_loop(
                 phase.end_event.record(torch.cuda.current_stream(device))
 
         # report gpu stats
-        if sample_gpuinfo:
+        if batch_idx % (gpuinfo_interval // batch_size)== 0:
             report_gpuinfo()
 
         # Update G_ema.

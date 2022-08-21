@@ -129,7 +129,7 @@ def parse_comma_separated_list(s):
 @click.option('--netF',         help='minimize mutual information', type=str, default='models.cut_networks.PatchSampleF', show_default=True)
 @click.option('--train_loss',   help='train loss', type=str, default='training.ecut_loss.ECUTLoss', show_default=True)
 @click.option('--resume_ema',   help='using ema models to generate images, should only use on debug', is_flag=True)
-@click.option('--sample_gpuinfo',   help='sample GPU information (load and memory usage)', is_flag=True)
+@click.option('--gpuinfo_interval',  help='interval of sampling GPU information (Load , Memory Usage)', type=click.IntRange(min=1), default=1000, show_default=True)
 
 # PatchNCE
 @click.option('--nce_layers',       help='feature layers',          type=str,        default=None,                 show_default=True)
@@ -343,7 +343,7 @@ def main(**kwargs):
     c.loss_kwargs.attn_detach = opts.attn_detach
     c.loss_kwargs.cam_attn_weight = opts.cam_attn_weight
     c.use_ema_model = opts.resume_ema
-    c.sample_gpuinfo = opts.sample_gpuinfo
+    c.gpuinfo_interval = opts.gpuinfo_interval
 
     c.D_kwargs = dnnlib.EasyDict(
         class_name=opts.netd,
