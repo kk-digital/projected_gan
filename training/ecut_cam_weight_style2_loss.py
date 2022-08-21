@@ -242,28 +242,34 @@ class ECUTCAMWeightStyle2Loss(Loss):
                     # TODO
                     pass
 
-                attn_real_A, feats_real_A = self.get_features(real_A)
-                attn_real_B, feats_real_B = self.get_features(real_B)
-                attn_A, logits_real_A = self.F.attn_net(attn_real_A)
-                attn_B, logits_real_B = self.F.attn_net(attn_real_B)
+                attn_real_A, _ = self.get_features(real_A)
+                attn_real_B, _ = self.get_features(real_B)
+                attn_maps_real_A, logits_real_A = self.F.attn_net(attn_real_A)
+                _, logits_real_B = self.F.attn_net(attn_real_B)
                 ab_dis_loss = 0
-                for logit_A, logit_B in zip(logits_real_A, logits_real_B):
-                    ab_dis_loss += (-logit_A).mean()
-                    ab_dis_loss += logit_B.mean()
+                for logit_real_A, logit_real_B in zip(logits_real_A, logits_real_B):
+                    ab_dis_loss += (-logit_real_A).mean()
+                    ab_dis_loss += logit_real_B.mean()
                 training_stats.report('Loss/G/abdis', ab_dis_loss)
 
                 if self.lambda_NCE > 0:
+                    attn_A, feats_A = self.get_features(A)
+                    attn_maps_A, _ = self.F.attn_net(attn_A)
                     feats_fake_B = self.netPre(fake_B, self.nce_layers, encode_only=True)
                     if isinstance(feats_fake_B, tuple):
                         feats_fake_B = feats_fake_B[1]
-                    loss_Gmain_NCE = self.calculate_NCE_loss(feats_real_A, feats_fake_B, attn_A)
+                    loss_Gmain_NCE = self.calculate_NCE_loss(feats_A, feats_fake_B, attn_maps_A)
                     if False:
+                        fake_B_ = self.G(real_A)
                         out = image_grid([
                                 real_A, 
-                                fake_B,
-                                image_blend_normal(visualize_feature(attn_A[0]), real_A),
-                                image_blend_normal(visualize_feature(attn_A[1]), real_A),
-                                image_blend_normal(visualize_feature(attn_A[2]), real_A),
+                                fake_B_,
+                                visualize_feature(attn_maps_real_A[0]),
+                                visualize_feature(attn_maps_real_A[1]),
+                                visualize_feature(attn_maps_real_A[2]),
+                                image_blend_normal(visualize_feature(attn_maps_real_A[0]), A),
+                                image_blend_normal(visualize_feature(attn_maps_real_A[1]), A),
+                                image_blend_normal(visualize_feature(attn_maps_real_A[2]), A),
                             ], 10)
                         save_image(out, os.path.join(self.run_dir, "debug_output.png"))
                     training_stats.report('Loss/G/NCE', loss_Gmain_NCE)
