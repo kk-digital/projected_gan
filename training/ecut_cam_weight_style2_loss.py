@@ -30,6 +30,7 @@ from models.fastae_v2_networks import Encoder as Ev2, Generator as Gv2
 from models.fastae_v3_networks import Encoder as Ev3, Generator as Gv3
 from models.style_networks import Encoder as Ev4, Generator as Gv4
 from models.style_v2_networks import Encoder as Ev5, Generator as Gv5
+from models.style_v3_networks import Encoder as Ev6, Generator as Gv6
 
 valid_gen_encoder = [
     (Gv1, Ev1),
@@ -37,6 +38,7 @@ valid_gen_encoder = [
     (Gv3, Ev3),
     (Gv4, Ev4),
     (Gv5, Ev5),
+    (Gv6, Ev6),
 ]
 
 
@@ -96,7 +98,7 @@ class ECUTCAMWeightStyle2Loss(Loss):
             self.netPre = self.G
             if isinstance(self.G, Gv3):
                 self.nce_layers = [2,4,6,8]
-            elif isinstance(self.G, Gv4):
+            elif isinstance(self.G, Gv4) or isinstance(self.G, Gv6):
                 self.nce_layers = [2,6,9,12,14,18]
             elif isinstance(self.G, Gv5):
                 self.nce_layers = [2,6,9,12,15,18]

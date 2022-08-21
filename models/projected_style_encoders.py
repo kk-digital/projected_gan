@@ -1,0 +1,22 @@
+import torch.nn as nn
+import torch.nn.functional as F
+from .styleformer import StyleFormer
+from .projected_feature import FeatureProjector
+
+
+class StyleEncoder(nn.Module):
+    def __init__(self, latent_dim: int, model: str='vit'):
+        super().__init__()
+        self.projector = FeatureProjector('efficientnet', (3,256,256), out_dim=1024, expand=True)
+        if model == 'vit':
+            self.model = StyleFormer(num_outputs=latent_dim, input_channels=1024, num_layers=4, image_size=self.projector.out_shape)
+        else:
+            raise NotImplementedError(model)
+    
+    def forward(self, img):
+        _, _, h, w = img.shape
+        if h != 256 or w != 256:
+            img = F.interpolate(img, (25,256), mode='bilinear')
+
+        projected = self.projector(img)
+        return self.model(projected)

@@ -38,6 +38,9 @@ from tdlogger import TdLogger
 import legacy
 from i2imetrics.all_score import calculate_scores_given_paths
 
+
+pretrained_modules = [ ['feature_network'], [ 'encoder', 'style_encoder', 'projector'] ]
+
 #----------------------------------------------------------------------------
 
 def setup_snapshot_image_grid(eval_set, random_seed=0):
@@ -142,11 +145,21 @@ def report_gpuinfo():
 
 #----------------------------------------------------------------------------
 
-def set_requires_grad(module: Union[List[torch.nn.Module], torch.nn.Module], require: bool):
+def set_requires_grad(module: Union[List[torch.nn.Module], torch.nn.Module], require: bool, pretrained_nets: List[List[str]]=[]):
     if not isinstance(module, list):
         module = [module]
     for mod in module:
         mod.requires_grad_(require)
+        if require:
+            for names in pretrained_nets:
+                mod_c = mod
+                for u in names:
+                    if not hasattr(mod_c, u):
+                        mod_c = None
+                        break
+                    mod_c = getattr(mod_c,u)
+                if mod_c is not None:
+                    mod_c.requires_grad_(False)
 
 
 def training_loop(
@@ -368,10 +381,7 @@ def training_loop(
 
             # Accumulate gradients.
             phase.opt.zero_grad(set_to_none=True)
-            set_requires_grad(phase.module, True)
-
-            if phase.name in ['Dmain', 'Dboth', 'Dreg'] and hasattr(phase.module, 'feature_network'):
-                phase.module.feature_network.requires_grad_(False)
+            set_requires_grad(phase.module, True, pretrained_modules)
 
             for real_A_img, real_B_img in zip(real_A, real_B):
                 loss.accumulate_gradients(phase=phase.name, real_A=real_A_img, real_B=real_B_img, gain=phase.interval, cur_nimg=cur_nimg)

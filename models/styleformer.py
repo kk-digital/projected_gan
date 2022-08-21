@@ -10,6 +10,8 @@ class StyleFormer(torch.nn.Module):
     def __init__(
         self, 
         num_outputs: int,
+        image_size = (256,256),
+        input_channels: int=3,
         num_layers: int = 6, 
         num_heads: int = 4, 
         mlp_ratio: float = 4.0,
@@ -21,14 +23,16 @@ class StyleFormer(torch.nn.Module):
         super(StyleFormer, self).__init__()
         self.embedding_dim = 384
         self.num_outputs = num_outputs
-        self.patch_size = 16
-        self.patch_len = (256 // self.patch_size) * (256 // self.patch_size)
+        h, w = image_size
+        assert h == w
+        self.patch_len = 16 * 16
+        self.patch_size = h // 16
 
         # embedding layer
         self.embedding_layer = EmbeddingStem(
-            image_size=256,
+            image_size=h,
             patch_size=self.patch_size,
-            channels=3,
+            channels=input_channels,
             embedding_dim=self.embedding_dim,
             hidden_dims=None,
             conv_patch=True,
