@@ -1,3 +1,4 @@
+from typing import Tuple
 import torch
 import torch.nn as nn
 
@@ -202,3 +203,51 @@ class Transformer(nn.Module):
             features.append(x)
         
         return x
+
+
+from .patch_embed import EmbeddingStem
+
+class VisioniTransformer(nn.Module):
+    def __init__(self, channels: int, shape: Tuple[int,int], patch_size: Tuple[int,int], dim: int, depth: int, heads: int, out_normalize: bool=True):
+        super().__init__()
+        self.out_resize = (shape[0]//patch_size[0], shape[1]//patch_size[1])
+
+        # embedding layer
+        self.embedding_layer = EmbeddingStem(
+            image_size=shape,
+            patch_size=patch_size,
+            channels=channels,
+            embedding_dim=dim,
+            hidden_dims=None,
+            conv_patch=True,
+            linear_patch=False,
+            conv_stem=False,
+            conv_stem_original=True,
+            conv_stem_scaled_relu=False,
+            position_embedding_dropout=0,
+            cls_head=False,
+        )
+
+        # transformer
+        self.transformer = Transformer(
+            dim=dim,
+            depth=depth,
+            heads=heads,
+            mlp_ratio=4.0,
+            attn_dropout=0,
+            dropout=0,
+            qkv_bias=True,
+            revised=False,
+        )
+
+        # transformer normalization
+        self.out_normalize = out_normalize
+        if out_normalize:
+            self.post_transformer = torch.nn.LayerNorm(dim)
+    
+    def forward(self, input):
+        embeded_input = self.embedding_layer(input)
+        x = self.transformer(embeded_input)
+        if self.out_normalize:
+            x = self.post_transformer(x)
+        return x.view(x.size(0), *self.out_resize, -1).permute(0, 3, 1, 2).contiguous()

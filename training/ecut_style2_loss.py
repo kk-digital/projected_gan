@@ -9,6 +9,7 @@
 # modified by Axel Sauer for "Projected GANs Converge Faster"
 #
 from functools import reduce
+from typing import Tuple
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -16,6 +17,7 @@ import dnnlib
 from torch import nn
 import kornia.augmentation as K
 import kornia
+from models.transformer import VisioniTransformer
 from torch_utils import training_stats
 from torch_utils.ops import upfirdn2d
 from models import losses
@@ -47,7 +49,8 @@ class Loss:
 class ECUTStyle2Loss(Loss):
     def __init__(self, device, G, D, F, resolution: int,
                  nce_layers: list, feature_net: str, nce_idt: bool, num_patches: int,
-                 style_recon_nce: bool = False,
+                 style_recon_nce: bool = False, feature_attn_layers: int=0, patch_max_shape: Tuple[int,int]=(256,256),
+                 normalize_transformer_out: bool = True,
                  lambda_GAN: float=1.0, lambda_NCE: float=1.0, lambda_identity: float = 0,
                  lambda_style_consis: float=50.0, lambda_style_recon: float = 5,
                  blur_init_sigma=0, blur_fade_kimg=0, **kwargs):
@@ -60,6 +63,9 @@ class ECUTStyle2Loss(Loss):
         self.resolution = resolution
         self.nce_idt = nce_idt
         self.num_patches = num_patches
+        self.feature_attn_layers = feature_attn_layers
+        self.patch_max_shape = patch_max_shape
+        self.normalize_transformer_out = normalize_transformer_out
         self.lambda_GAN = lambda_GAN
         self.lambda_NCE = lambda_NCE
         self.lambda_identity = lambda_identity
@@ -107,11 +113,40 @@ class ECUTStyle2Loss(Loss):
         self.setup_F()
         self.F.train().requires_grad_(False).to(self.device)
 
-    def setup_F(self):
-        fimg = torch.empty([1, 3, self.resolution, self.resolution], device=self.device)
-        feat = self.netPre(fimg, self.nce_layers, encode_only=True)
+    def setup_nce_features_attn(self, img):
+        if self.feature_attn_layers == 0:
+            return
+
+        feat = self.netPre(img, self.nce_layers, encode_only=True)
         if isinstance(feat, tuple):
             feat = feat[1]
+        
+        max_h, max_w = self.patch_max_shape
+        vit_modules = nn.ModuleList()
+        for ft in feat:
+            _, c, h, w = ft.shape
+            out_h, out_w = min(max_h, h), min(max_w, w)
+            assert h % out_h == 0 and w % out_w == 0
+            patch_size = (h // out_h, w // out_w)
+            vit = VisioniTransformer(c, (h, w), patch_size, min(1024, c * patch_size[0] * patch_size[1]), self.feature_attn_layers, 4, self.normalize_transformer_out)
+            vit_modules.append(vit)
+        self.F.vit_modules = vit_modules.to(self.device)
+
+    def get_nce_features(self, img):
+        feats = self.netPre(img, self.nce_layers, encode_only=True)
+        if isinstance(feats, tuple):
+            feats = feats[1]
+        
+        if self.feature_attn_layers > 0:
+            feats = list(map(lambda a: a[0](a[1]), zip(self.F.vit_modules, feats)))
+
+        return feats
+
+    def setup_F(self):
+        fimg = torch.empty([1, 3, self.resolution, self.resolution], device=self.device)
+        self.setup_nce_features_attn(fimg)
+        feat = self.get_nce_features(fimg)
+
         self.F.create_mlp(feat)
         self.D.latent_dis = LatDiscriminator(self.latent_dim).to(self.device).requires_grad_(False)
         encoder = reduce(lambda a, b: a or b, map(lambda u: isinstance(self.G, u[0]) and u[1], valid_gen_encoder))
@@ -119,14 +154,8 @@ class ECUTStyle2Loss(Loss):
             latent_dim=self.G.latent_dim, ngf=self.G.ngf, nc=self.G.nc,
             img_resolution=self.G.img_resolution, lite=self.G.lite).to(self.device).requires_grad_(False)
 
-    def calculate_NCE_loss(self, feat_net: torch.nn.Module, src, tgt):
+    def calculate_NCE_loss(self, feat_k, feat_q):
         n_layers = len(self.nce_layers)
-        feat_q = feat_net(tgt, self.nce_layers, encode_only=True)
-        feat_k = feat_net(src, self.nce_layers, encode_only=True)
-        if isinstance(feat_q, tuple):
-            feat_q = feat_q[1]
-        if isinstance(feat_k, tuple):
-            feat_k = feat_k[1]
 
         feat_k_pool, sample_ids = self.F(feat_k, self.num_patches, None)
         feat_q_pool, _ = self.F(feat_q, self.num_patches, sample_ids)
@@ -196,7 +225,7 @@ class ECUTStyle2Loss(Loss):
                     # training_stats.report('Loss/G/identity', loss_Gmain_idt)
 
                 if self.lambda_NCE > 0:
-                    loss_Gmain_NCE = self.calculate_NCE_loss(self.netPre, A, fake_B)
+                    loss_Gmain_NCE = self.calculate_NCE_loss(self.get_nce_features(A), self.get_nce_features(fake_B))
                     training_stats.report('Loss/G/NCE', loss_Gmain_NCE)
                     # if self.nce_idt:
                     #     loss_Gmain_NCE_idt = self.calculate_NCE_loss(self.netPre, real_B, fake_idt_B)
