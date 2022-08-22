@@ -15,7 +15,7 @@
 import io
 import itertools
 import os
-from random import shuffle
+from random import sample, shuffle
 import time
 import copy
 import json
@@ -193,6 +193,7 @@ def training_loop(
     progress_fn             = None,     # Callback function for updating training progress. Called for all ranks.
     restart_every           = -1,       # Time interval in seconds to exit code
     gpuinfo_interval: int = 1000,
+    sample_image_grid: bool = True,
     desc: str = '',
     use_ema_model: bool = False,
     logger: TdLogger = None,
@@ -306,13 +307,14 @@ def training_loop(
     if rank == 0:
         print('Exporting sample images...')
         grid_size, imagesB, imagesA = setup_snapshot_image_grid(eval_set=eval_set)
-        save_image_grid(imagesA, imagesB, os.path.join(run_dir, 'reals.png'), drange=[-1,1], grid_size=grid_size)
+        if sample_image_grid:
+            save_image_grid(imagesA, imagesB, os.path.join(run_dir, 'reals.png'), drange=[-1,1], grid_size=grid_size)
 
-        images_A = torch.from_numpy(imagesA).to(device).split(batch_gpu)
-        images = torch.cat([G_ema(img).cpu() for img in images_A]).numpy()
+            images_A = torch.from_numpy(imagesA).to(device).split(batch_gpu)
+            images = torch.cat([G_ema(img).cpu() for img in images_A]).numpy()
 
-        save_image_grid(imagesA, images, os.path.join(run_dir, 'fakes_init.png'), drange=[-1,1], grid_size=grid_size)
-        del images_A
+            save_image_grid(imagesA, images, os.path.join(run_dir, 'fakes_init.png'), drange=[-1,1], grid_size=grid_size)
+            del images_A
 
     def sample_images(tick: int):
         if logger is None:
@@ -482,7 +484,7 @@ def training_loop(
                 torch.distributed.barrier()
 
         # Save image snapshot.
-        if (rank == 0) and (image_snapshot_ticks is not None) and (done or cur_tick % image_snapshot_ticks == 0):
+        if sample_image_grid and (rank == 0) and (image_snapshot_ticks is not None) and (done or cur_tick % image_snapshot_ticks == 0):
             images_A = torch.from_numpy(imagesA).to(device).split(batch_gpu)
             images = torch.cat([G_ema(img).cpu() for img in images_A]).numpy()
             img_path = os.path.join(run_dir, f'fakes{cur_nimg//1000:06d}.png')
