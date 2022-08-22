@@ -86,7 +86,7 @@ class D_NLayersMulti(nn.Module):
 class NLayerDiscriminator(nn.Module):
     """Defines a PatchGAN discriminator"""
 
-    def __init__(self, input_nc, ndf=64, n_layers=3, norm_layer=nn.BatchNorm2d, no_antialias=False):
+    def __init__(self, input_nc=3, ndf=64, n_layers=3, norm_layer=nn.InstanceNorm2d, no_antialias=False, **kwargs):
         """Construct a PatchGAN discriminator
 
         Parameters:
