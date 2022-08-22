@@ -54,6 +54,7 @@ class ECUTCAMWeightStyle2Loss(Loss):
                  feature_net: str, nce_idt: bool, num_patches: int,
                  adaptive_loss: bool, lambda_abdis: float=1.0, sigmoid_attn: bool = False,
                  run_dir: str='.', attn_detach: bool = True, cam_attn_weight: bool=False,
+                 style_recon_nce: bool = False,
                  lambda_style_consis: float=50.0, lambda_style_recon: float = 5,
                  lambda_GAN: float=1.0, lambda_NCE: float=1.0, lambda_identity: float = 0,
                  blur_init_sigma=0, blur_fade_kimg=0, **kwargs):
@@ -80,6 +81,7 @@ class ECUTCAMWeightStyle2Loss(Loss):
         self.blur_fade_kimg = blur_fade_kimg
         self.adaptive_loss = adaptive_loss
         self.criterionIdt = torch.nn.MSELoss()
+        self.criterionStyleReCon = losses.ContrastiveNCELoss() if style_recon_nce else torch.nn.MSELoss()
         self.latent_dim = self.G.latent_dim
         self.aug = nn.Sequential(
             K.RandomAffine(degrees=(-20,20), scale=(0.8, 1.2), translate=(0.1, 0.1), shear=0.15),
@@ -291,7 +293,7 @@ class ECUTCAMWeightStyle2Loss(Loss):
 
                 if self.lambda_style_recon > 0:
                     recon_style = self.G.reverse_se.style_encode(fake_B)
-                    loss_Gmain_style_recon = self.criterionIdt(input_A_style, recon_style)
+                    loss_Gmain_style_recon = self.criterionStyleReCon(input_A_style, recon_style)
                     training_stats.report('Loss/G/StyleReconstruction', loss_Gmain_style_recon)
                     loss_Gmain = loss_Gmain + loss_Gmain_style_recon * self.lambda_style_recon
 

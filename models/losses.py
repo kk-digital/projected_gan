@@ -427,7 +427,10 @@ class ContrastiveNCELoss(nn.Module):
         logits = logits / self.temperature
         return logits, labels
 
-    def forward(self, features: torch.Tensor):
+    def forward(self, features: torch.Tensor, features2: torch.Tensor=None):
+        if features2 is not None:
+            assert features.size(0) == features2.size(0)
+            features = torch.cat([features, features2], dim=0)
         logits, labels = self.info_nce_stats(features)
         return self.criterion(logits, labels)
 

@@ -132,6 +132,9 @@ def parse_comma_separated_list(s):
 @click.option('--gpuinfo_interval',  help='interval of sampling GPU information (Load , Memory Usage)', type=click.IntRange(min=1), default=1000, show_default=True)
 @click.option('--dont_sample_grid',  help='don\'t sample image grid for saving time', is_flag=True)
 
+# Style
+@click.option('--style_recon_nce',   help='using NCE loss instead of MSELoss for style reconstruction', is_flag=True)
+
 # PatchNCE
 @click.option('--nce_layers',       help='feature layers',          type=str,        default=None,                 show_default=True)
 @click.option('--patch_max_shape',  help='patch grid max shape, two integer separated by comma', type=str, default='256,256', show_default=True)
@@ -343,6 +346,7 @@ def main(**kwargs):
     c.loss_kwargs.sigmoid_attn = opts.sigmoid_attn
     c.loss_kwargs.attn_detach = opts.attn_detach
     c.loss_kwargs.cam_attn_weight = opts.cam_attn_weight
+    c.loss_kwargs.style_recon_nce = opts.style_recon_nce
     c.use_ema_model = opts.resume_ema
     c.gpuinfo_interval = opts.gpuinfo_interval
     c.sample_image_grid = not opts.dont_sample_grid
