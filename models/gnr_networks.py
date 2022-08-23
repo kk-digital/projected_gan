@@ -672,7 +672,7 @@ class Discriminator(nn.Module):
 
 
 class Encoder(nn.Module):
-    def __init__(self, size, latent_dim, num_down, n_res, channel_multiplier=2, blur_kernel=[1, 3, 3, 1]):
+    def __init__(self, size, latent_dim, num_down=3, n_res=1, channel_multiplier=2, blur_kernel=[1, 3, 3, 1], **kwargs):
         super().__init__()
         self.num_down = num_down
         stem = [ConvLayer(3, channels[size], 1)]
