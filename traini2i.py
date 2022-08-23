@@ -132,6 +132,10 @@ def parse_comma_separated_list(s):
 @click.option('--gpuinfo_interval',  help='interval of sampling GPU information (Load , Memory Usage)', type=click.IntRange(min=1), default=1000, show_default=True)
 @click.option('--dont_sample_grid',  help='don\'t sample image grid for saving time', is_flag=True)
 
+# Generator
+@click.option('--ngf',  help='base channel', type=click.IntRange(min=0, max=512), default=0)
+@click.option('--latent_dim',  help='style generator: style latent dimension', type=click.IntRange(min=0, max=4096), default=0)
+
 # Style
 @click.option('--style_recon_nce',   help='using NCE loss instead of MSELoss for style reconstruction', is_flag=True)
 @click.option('--style_recon_nce_mlp_layers',  help='map style code into latent space for computing NCE loss', type=click.IntRange(min=0, max=8), default=0)
@@ -279,6 +283,11 @@ def main(**kwargs):
     if opts.netg == 'models.cyclegan_networks.ResnetGenerator':
         c.G_kwargs.input_nc = 3
         c.G_kwargs.output_nc = 3
+    
+    if opts.ngf > 0:
+        c.G_kwargs.ngf = opts.ngf
+    if opts.latent_dim > 0:
+        c.G_kwargs.latent_dim = opts.latent_dim
     
     c.F_kwargs = dnnlib.EasyDict(class_name=opts.netf)
     c.F_kwargs.use_mlp = opts.nce_mlp_layers != 0
