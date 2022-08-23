@@ -276,6 +276,9 @@ class ECUTPreStyle2Loss(Loss):
                         recon_style_mu = recon_style[:,:recon_style.size(1)//2]
                         recon_style_logvar = recon_style[:,recon_style.size(1)//2:]
                         recon_style = gaussian_reparameterization(recon_style_mu, recon_style_logvar)
+                        loss_Gmain_recon_style_KLD = univariate_gaussian_KLD(recon_style_mu, recon_style_logvar)
+                        loss_Gmain = loss_Gmain + loss_Gmain_recon_style_KLD * self.lambda_style_KLD
+                        training_stats.report('Loss/G/reconStyleKLD', loss_Gmain_recon_style_KLD)
 
                     if self.style_recon_nce and self.style_recon_nce_mlp_layers > 0:
                         mlp = self.F.style_nce_mlp
