@@ -316,7 +316,7 @@ class StyleEncoder(nn.Module):
 
 
 class Encoder(nn.Module):
-    def __init__(self, latent_dim: int, ngf=128, nc: int=3, img_resolution: int=256, lite: bool=False):
+    def __init__(self, latent_dim: int, ngf=128, nc: int=3, img_resolution: int=256, lite: bool=False, **kwargs):
         super().__init__()
         self.style_encoder = StyleEncoder(latent_dim, lite=lite, ngf=ngf, img_resolution=img_resolution, nc=nc)
         self.content_encoder = ContentEncoder(ngf=ngf, img_resolution=img_resolution, nc=nc)
