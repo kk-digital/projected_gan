@@ -164,9 +164,12 @@ class ECUTPreStyle2Loss(Loss):
             self.G.reverse_se = self.G.encoder
         else:
             encoder = reduce(lambda a, b: a or b, map(lambda u: isinstance(self.G, u[0]) and u[1], valid_gen_encoder))
-            self.G.reverse_se = encoder(
-                latent_dim=self.G.latent_dim, ngf=self.G.ngf, nc=self.G.nc,
-                img_resolution=self.G.img_resolution, lite=self.G.lite).to(self.device).requires_grad_(False)
+            if isinstance(self.G, Gs):
+                self.G.reverse_se = encoder(self.G.size, self.G.latent_dim, n_res=self.G.n_res).to(self.device).requires_grad_(False)
+            else:
+                self.G.reverse_se = encoder(
+                    latent_dim=self.G.latent_dim, ngf=self.G.ngf, nc=self.G.nc,
+                    img_resolution=self.G.img_resolution, lite=self.G.lite).to(self.device).requires_grad_(False)
 
     def calculate_NCE_loss(self, feat_k, feat_q):
         n_layers = len(self.nce_layers)
@@ -211,7 +214,7 @@ class ECUTPreStyle2Loss(Loss):
                 real_A_content, real_A_style = self.G.encode(real_A)
 
                 if self.randn_style:
-                    rand_A_style = torch.randn([batch_size, self.latent_dim]).to(device)
+                    rand_A_style = torch.randn([batch_size, self.latent_dim]).to(device).requires_grad_()
                     idx = torch.randperm(2 * batch_size)
                     input_A_style = torch.cat([real_A_style, rand_A_style], 0)[idx][:batch_size]
                 else:
@@ -297,7 +300,7 @@ class ECUTPreStyle2Loss(Loss):
                 loss_Dreal = (F.relu(torch.ones_like(real_logits) - real_logits)).mean()
 
                 if self.randn_style:
-                    rand_style = torch.randn([batch_size, self.latent_dim]).to(device)
+                    rand_style = torch.randn([batch_size, self.latent_dim]).to(device).requires_grad_()
                     style_real_logits = torch.cat(self.D.latent_dis(rand_style), dim=1)
                     loss_Dreal_style = (F.relu(torch.ones_like(style_real_logits) - style_real_logits)).mean()
 
