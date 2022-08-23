@@ -26,6 +26,7 @@ from models.gnr_networks import LatDiscriminator
 from models.fastae_networks import Encoder as Ev1, Generator as Gv1
 from models.fastae_v2_networks import Encoder as Ev2, Generator as Gv2
 from models.fastae_v3_networks import Encoder as Ev3, Generator as Gv3
+from models.fastae_v5_networks import Encoder as Ev9, Generator as Gv9
 from models.style_networks import Encoder as Ev4, Generator as Gv4
 from models.style_v2_networks import Encoder as Ev5, Generator as Gv5
 from models.style_v3_networks import Encoder as Ev7, Generator as Gv7
@@ -39,6 +40,7 @@ valid_gen_encoder = [
     (Gv5, Ev5),
     (Gv7, Ev7),
     (Gv8, Ev8),
+    (Gv9, Ev9),
 ]
 
 class Loss:
@@ -95,6 +97,8 @@ class ECUTStyle2Loss(Loss):
                 nce_layers = [2,6,9,12,14,18]
             elif isinstance(self.G, Gv5):
                 nce_layers = [2,6,9,12,15,18]
+            else:
+                raise NotImplementedError()
         else:
             raise NotImplementedError(feature_net)
 
