@@ -134,6 +134,9 @@ def parse_comma_separated_list(s):
 
 # Style
 @click.option('--style_recon_nce',   help='using NCE loss instead of MSELoss for style reconstruction', is_flag=True)
+@click.option('--style_recon_nce_mlp_layers',  help='map style code into latent space for computing NCE loss', type=click.IntRange(min=0, max=8), default=0)
+@click.option('--randn_style',   help='sample style from normal distribution', is_flag=True)
+@click.option('--same_style_encoder',   help='single style encoder for images of both domains', is_flag=True)
 
 # PatchNCE
 @click.option('--nce_layers',       help='feature layers',          type=str,        default=None,                 show_default=True)
@@ -352,6 +355,9 @@ def main(**kwargs):
     c.loss_kwargs.attn_detach = opts.attn_detach
     c.loss_kwargs.cam_attn_weight = opts.cam_attn_weight
     c.loss_kwargs.style_recon_nce = opts.style_recon_nce
+    c.loss_kwargs.style_recon_nce_mlp_layers = opts.style_recon_nce_mlp_layers
+    c.loss_kwargs.randn_style = opts.randn_style
+    c.loss_kwargs.same_style_encoder = opts.same_style_encoder
     c.use_ema_model = opts.resume_ema
     c.gpuinfo_interval = opts.gpuinfo_interval
     c.sample_image_grid = not opts.dont_sample_grid
