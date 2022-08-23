@@ -138,6 +138,7 @@ def parse_comma_separated_list(s):
 @click.option('--randn_style',   help='sample style from normal distribution', is_flag=True)
 @click.option('--same_style_encoder',   help='single style encoder for images of both domains', is_flag=True)
 @click.option('--lambda_style_KLD', type=float, default=0.0, show_default=True)
+@click.option('--shuffle_style',   help='shuffle style codes of one batch', is_flag=True)
 
 # PatchNCE
 @click.option('--nce_layers',       help='feature layers',          type=str,        default=None,                 show_default=True)
@@ -361,6 +362,7 @@ def main(**kwargs):
     c.loss_kwargs.style_recon_nce_mlp_layers = opts.style_recon_nce_mlp_layers
     c.loss_kwargs.randn_style = opts.randn_style
     c.loss_kwargs.same_style_encoder = opts.same_style_encoder
+    c.loss_kwargs.shuffle_style = opts.shuffle_style
     c.use_ema_model = opts.resume_ema
     c.gpuinfo_interval = opts.gpuinfo_interval
     c.sample_image_grid = not opts.dont_sample_grid

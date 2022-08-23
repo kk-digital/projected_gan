@@ -50,7 +50,8 @@ class Loss:
 class ECUTPreStyle2Loss(Loss):
     def __init__(self, device, G, D, F, resolution: int,
                  nce_layers: list, feature_net: str, nce_idt: bool, num_patches: int,
-                 style_recon_nce: bool = True, style_recon_nce_mlp_layers: int=0, randn_style: bool=False, lambda_style_KLD: float=0,
+                 style_recon_nce: bool = True, style_recon_nce_mlp_layers: int=0, randn_style: bool=False,
+                 lambda_style_KLD: float=0, shuffle_style: bool=False,
                  feature_attn_layers: int=0, patch_max_shape: Tuple[int,int]=(256,256),
                  normalize_transformer_out: bool = True, same_style_encoder: bool = True,
                  lambda_GAN: float=1.0, lambda_NCE: float=1.0, lambda_identity: float = 0,
@@ -73,6 +74,7 @@ class ECUTPreStyle2Loss(Loss):
         self.style_recon_nce = style_recon_nce
         self.style_recon_nce_mlp_layers = style_recon_nce_mlp_layers
         self.randn_style = randn_style
+        self.shuffle_style = shuffle_style
         self.lambda_style_KLD = lambda_style_KLD
         self.lambda_GAN = lambda_GAN
         self.lambda_NCE = lambda_NCE
@@ -216,6 +218,10 @@ class ECUTPreStyle2Loss(Loss):
             with torch.autograd.profiler.record_function('Gmain_forward'):
                 real_A_content, real_A_style = self.G.encode(real_A)
                 loss_Gmain = 0
+
+                if self.shuffle_style:
+                    idx = torch.randperm(batch_size)
+                    real_A_style = real_A_style[idx]
 
                 if self.randn_style:
                     rand_A_style = torch.randn([batch_size, self.latent_dim]).to(device).requires_grad_()
