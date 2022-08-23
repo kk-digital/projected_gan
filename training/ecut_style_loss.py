@@ -168,7 +168,7 @@ class ECUTStyleLoss(Loss):
                     # training_stats.report('Loss/G/identity', loss_Gmain_idt)
 
                 if self.lambda_NCE > 0:
-                    loss_Gmain_NCE = self.calculate_NCE_loss(self.netPre, real_A, fake_B)
+                    loss_Gmain_NCE = self.calculate_NCE_loss(self.netPre, A, fake_B)
                     training_stats.report('Loss/G/NCE', loss_Gmain_NCE)
                     # if self.nce_idt:
                     #     loss_Gmain_NCE_idt = self.calculate_NCE_loss(self.netPre, real_B, fake_idt_B)
