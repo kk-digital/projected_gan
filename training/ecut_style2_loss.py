@@ -128,7 +128,7 @@ class ECUTStyle2Loss(Loss):
             out_h, out_w = min(max_h, h), min(max_w, w)
             assert h % out_h == 0 and w % out_w == 0
             patch_size = (h // out_h, w // out_w)
-            vit = VisioniTransformer(c, (h, w), patch_size, min(1024, c * patch_size[0] * patch_size[1]), self.feature_attn_layers, 4, self.normalize_transformer_out)
+            vit = VisioniTransformer(c, (h, w), patch_size, min(512, c * patch_size[0] * patch_size[1]), self.feature_attn_layers, 4, self.normalize_transformer_out)
             vit_modules.append(vit)
         self.F.vit_modules = vit_modules.to(self.device)
 
