@@ -220,7 +220,6 @@ class ECUTPreStyle2Loss(Loss):
                     training_stats.report('Loss/G/StyleReconstruction', loss_Gmain_style_recon)
                     loss_Gmain = loss_Gmain + loss_Gmain_style_recon * self.lambda_style_recon
 
-                self.real_A = real_A
                 self.fake_B = fake_B.detach()
                 training_stats.report('Loss/G/loss', loss_Gmain)
 
@@ -243,7 +242,7 @@ class ECUTPreStyle2Loss(Loss):
 
             # Dmain: Maximize logits for real images.
             with torch.autograd.profiler.record_function('Dreal_forward'):
-                real_logits = self.run_D(real_A, blur_sigma=blur_sigma)
+                real_logits = self.run_D(real_B, blur_sigma=blur_sigma)
                 loss_Dreal = (F.relu(torch.ones_like(real_logits) - real_logits)).mean()
 
                 # Logging
