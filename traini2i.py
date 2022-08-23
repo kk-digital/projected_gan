@@ -138,6 +138,7 @@ def parse_comma_separated_list(s):
 @click.option('--randn_style',   help='sample style from normal distribution', is_flag=True)
 @click.option('--same_style_encoder',   help='single style encoder for images of both domains', is_flag=True)
 @click.option('--lambda_style_KLD', type=float, default=0.0, show_default=True)
+@click.option('--lambda_style_recon', type=float, default=8.0, show_default=True)
 @click.option('--shuffle_style',   help='shuffle style codes of one batch', is_flag=True)
 
 # PatchNCE
@@ -338,6 +339,7 @@ def main(**kwargs):
     c.loss_kwargs.patch_size = opts.patch_size
     c.loss_kwargs.sim_pnorm = opts.nce_sim_pnorm
     c.loss_kwargs.lambda_style_KLD = opts.lambda_style_kld
+    c.loss_kwargs.lambda_style_recon = opts.lambda_style_recon
     c.loss_kwargs.lambda_GAN = opts.lambda_gan
     c.loss_kwargs.lambda_GAN_random = opts.lambda_gan_random
     c.loss_kwargs.lambda_NCE = opts.lambda_nce
