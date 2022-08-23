@@ -160,7 +160,7 @@ class ECUTPreStyle2Loss(Loss):
 
         if self.style_recon_nce and self.style_recon_nce_mlp_layers > 0:
             expand_dim = 512
-            mlp = [ nn.Linear(self.latent_dim * 2 if self.lambda_style_KLD > 0 else self.latent_dim, expand_dim) ]
+            mlp = [ nn.Linear(self.latent_dim, expand_dim) ]
             mlp += [ nn.Sequential(nn.ReLU(), nn.Linear(expand_dim, expand_dim)) for _ in range(1,self.style_recon_nce_mlp_layers) ]
             self.F.style_nce_mlp = nn.Sequential(*mlp)
 
@@ -227,15 +227,12 @@ class ECUTPreStyle2Loss(Loss):
                     rand_A_style = torch.randn([batch_size, self.latent_dim]).to(device).requires_grad_()
                     idx = torch.randperm(2 * batch_size)
                     input_A_style = torch.cat([real_A_style, rand_A_style], 0)[idx][:batch_size]
-                    input_A_style_raw = input_A_style
                 elif self.lambda_style_KLD > 0:
                     real_A_style_mu = real_A_style[:,:real_A_style.size(1)//2]
                     real_A_style_logvar = real_A_style[:,real_A_style.size(1)//2:]
                     input_A_style = gaussian_reparameterization(real_A_style_mu, real_A_style_logvar)
-                    input_A_style_raw = real_A_style
                 else:
                     input_A_style = real_A_style
-                    input_A_style_raw = real_A_style
 
                 fake_B = self.G.decode(real_A_content, input_A_style)
                 
@@ -276,13 +273,17 @@ class ECUTPreStyle2Loss(Loss):
                 
                 if self.lambda_style_recon > 0:
                     recon_style = self.G.reverse_se.style_encode(fake_B)
+                    if self.lambda_style_KLD > 0:
+                        recon_style_mu = recon_style[:,:recon_style.size(1)//2]
+                        recon_style_logvar = recon_style[:,recon_style.size(1)//2:]
+                        recon_style = gaussian_reparameterization(recon_style_mu, recon_style_logvar)
 
                     if self.style_recon_nce and self.style_recon_nce_mlp_layers > 0:
                         mlp = self.F.style_nce_mlp
-                        input_style_ = mlp(input_A_style_raw)
+                        input_style_ = mlp(input_A_style)
                         recon_style_ = mlp(recon_style)
                     else:
-                        input_style_ = input_A_style_raw
+                        input_style_ = input_A_style
                         recon_style_ = recon_style
 
                     loss_Gmain_style_recon = self.criterionStyleRecon(input_style_, recon_style_)
