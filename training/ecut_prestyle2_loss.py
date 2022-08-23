@@ -17,6 +17,7 @@ import dnnlib
 from torch import nn
 import kornia.augmentation as K
 import kornia
+from models.gaussian_vae import gaussian_reparameterization, univariate_gaussian_KLD
 from models.gnr_networks import LatDiscriminator
 from models.transformer import VisioniTransformer
 from torch_utils import training_stats
@@ -49,7 +50,7 @@ class Loss:
 class ECUTPreStyle2Loss(Loss):
     def __init__(self, device, G, D, F, resolution: int,
                  nce_layers: list, feature_net: str, nce_idt: bool, num_patches: int,
-                 style_recon_nce: bool = True, style_recon_nce_mlp_layers: int=0, randn_style: bool=False,
+                 style_recon_nce: bool = True, style_recon_nce_mlp_layers: int=0, randn_style: bool=False, lambda_style_KLD: float=0,
                  feature_attn_layers: int=0, patch_max_shape: Tuple[int,int]=(256,256),
                  normalize_transformer_out: bool = True, same_style_encoder: bool = True,
                  lambda_GAN: float=1.0, lambda_NCE: float=1.0, lambda_identity: float = 0,
@@ -58,6 +59,7 @@ class ECUTPreStyle2Loss(Loss):
         super().__init__()
         self.device = device
         assert reduce(lambda a, b: a or b, map(lambda u: isinstance(G, u[0]), valid_gen_encoder))
+        assert lambda_style_KLD == 0 or not randn_style
         self.G: Gv3 = G
         self.D = D
         self.F = F
@@ -71,6 +73,7 @@ class ECUTPreStyle2Loss(Loss):
         self.style_recon_nce = style_recon_nce
         self.style_recon_nce_mlp_layers = style_recon_nce_mlp_layers
         self.randn_style = randn_style
+        self.lambda_style_KLD = lambda_style_KLD
         self.lambda_GAN = lambda_GAN
         self.lambda_NCE = lambda_NCE
         self.lambda_identity = lambda_identity
@@ -155,7 +158,7 @@ class ECUTPreStyle2Loss(Loss):
 
         if self.style_recon_nce and self.style_recon_nce_mlp_layers > 0:
             expand_dim = 512
-            mlp = [ nn.Linear(self.latent_dim, expand_dim) ]
+            mlp = [ nn.Linear(self.latent_dim * 2 if self.lambda_style_KLD > 0 else self.latent_dim, expand_dim) ]
             mlp += [ nn.Sequential(nn.ReLU(), nn.Linear(expand_dim, expand_dim)) for _ in range(1,self.style_recon_nce_mlp_layers) ]
             self.F.style_nce_mlp = nn.Sequential(*mlp)
 
@@ -165,11 +168,11 @@ class ECUTPreStyle2Loss(Loss):
         else:
             encoder = reduce(lambda a, b: a or b, map(lambda u: isinstance(self.G, u[0]) and u[1], valid_gen_encoder))
             if isinstance(self.G, Gs):
-                self.G.reverse_se = encoder(self.G.size, self.G.latent_dim, n_res=self.G.n_res).to(self.device).requires_grad_(False)
+                self.G.reverse_se = encoder(self.G.size, self.G.latent_dim, n_res=self.G.n_res, variational_style_encoder=self.lambda_style_KLD>0).to(self.device).requires_grad_(False)
             else:
                 self.G.reverse_se = encoder(
                     latent_dim=self.G.latent_dim, ngf=self.G.ngf, nc=self.G.nc,
-                    img_resolution=self.G.img_resolution, lite=self.G.lite).to(self.device).requires_grad_(False)
+                    img_resolution=self.G.img_resolution, lite=self.G.lite, variational_style_encoder=self.lambda_style_KLD>0).to(self.device).requires_grad_(False)
 
     def calculate_NCE_loss(self, feat_k, feat_q):
         n_layers = len(self.nce_layers)
@@ -212,23 +215,36 @@ class ECUTPreStyle2Loss(Loss):
             # Gmain: Maximize logits for generated images.
             with torch.autograd.profiler.record_function('Gmain_forward'):
                 real_A_content, real_A_style = self.G.encode(real_A)
+                loss_Gmain = 0
 
                 if self.randn_style:
                     rand_A_style = torch.randn([batch_size, self.latent_dim]).to(device).requires_grad_()
                     idx = torch.randperm(2 * batch_size)
                     input_A_style = torch.cat([real_A_style, rand_A_style], 0)[idx][:batch_size]
+                    input_A_style_raw = input_A_style
+                elif self.lambda_style_KLD > 0:
+                    real_A_style_mu = real_A_style[:,:real_A_style.size(1)//2]
+                    real_A_style_logvar = real_A_style[:,real_A_style.size(1)//2:]
+                    input_A_style = gaussian_reparameterization(real_A_style_mu, real_A_style_logvar)
+                    input_A_style_raw = real_A_style
                 else:
                     input_A_style = real_A_style
+                    input_A_style_raw = real_A_style
 
                 fake_B = self.G.decode(real_A_content, input_A_style)
                 
                 # Adversarial loss
                 gen_logits = self.run_D(fake_B, blur_sigma=blur_sigma)
                 loss_Gmain_GAN = (-gen_logits).mean()
-                loss_Gmain = self.lambda_GAN * loss_Gmain_GAN
+                loss_Gmain = loss_Gmain + self.lambda_GAN * loss_Gmain_GAN
                 training_stats.report('Loss/scores/fake', gen_logits)
                 training_stats.report('Loss/signs/fake', gen_logits.sign())
                 training_stats.report('Loss/G/gan', loss_Gmain_GAN)
+
+                if self.lambda_style_KLD > 0:
+                    loss_Gmain_style_KLD = univariate_gaussian_KLD(real_A_style_mu, real_A_style_logvar)
+                    loss_Gmain = loss_Gmain + loss_Gmain_style_KLD * self.lambda_style_KLD
+                    training_stats.report('Loss/G/styleKLD', loss_Gmain_style_KLD)
 
                 # TODO is lambda_GAN good for this ???
                 if self.randn_style:
@@ -257,10 +273,10 @@ class ECUTPreStyle2Loss(Loss):
 
                     if self.style_recon_nce and self.style_recon_nce_mlp_layers > 0:
                         mlp = self.F.style_nce_mlp
-                        input_style_ = mlp(input_A_style)
+                        input_style_ = mlp(input_A_style_raw)
                         recon_style_ = mlp(recon_style)
                     else:
-                        input_style_ = input_A_style
+                        input_style_ = input_A_style_raw
                         recon_style_ = recon_style
 
                     loss_Gmain_style_recon = self.criterionStyleRecon(input_style_, recon_style_)

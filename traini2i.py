@@ -137,6 +137,7 @@ def parse_comma_separated_list(s):
 @click.option('--style_recon_nce_mlp_layers',  help='map style code into latent space for computing NCE loss', type=click.IntRange(min=0, max=8), default=0)
 @click.option('--randn_style',   help='sample style from normal distribution', is_flag=True)
 @click.option('--same_style_encoder',   help='single style encoder for images of both domains', is_flag=True)
+@click.option('--lambda_style_KLD', type=float, default=0.0, show_default=True)
 
 # PatchNCE
 @click.option('--nce_layers',       help='feature layers',          type=str,        default=None,                 show_default=True)
@@ -272,6 +273,7 @@ def main(**kwargs):
     c.ema_kimg = c.batch_size * 10 / 32
     c.G_kwargs = dnnlib.EasyDict(class_name=opts.netg)
     c.G_kwargs.style_extractor = opts.style_extractor
+    c.G_kwargs.variational_style_encoder = opts.lambda_style_kld > 0
     if opts.netg == 'models.cyclegan_networks.ResnetGenerator':
         c.G_kwargs.input_nc = 3
         c.G_kwargs.output_nc = 3
@@ -334,6 +336,7 @@ def main(**kwargs):
     c.loss_kwargs.num_patches = opts.num_patches
     c.loss_kwargs.patch_size = opts.patch_size
     c.loss_kwargs.sim_pnorm = opts.nce_sim_pnorm
+    c.loss_kwargs.lambda_style_KLD = opts.lambda_style_kld
     c.loss_kwargs.lambda_GAN = opts.lambda_gan
     c.loss_kwargs.lambda_GAN_random = opts.lambda_gan_random
     c.loss_kwargs.lambda_NCE = opts.lambda_nce

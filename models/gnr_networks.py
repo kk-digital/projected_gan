@@ -8,6 +8,7 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 from torch.autograd import Function
+from models.gaussian_vae import gaussian_reparameterization
 
 from op import FusedLeakyReLU, fused_leaky_relu, upfirdn2d
 n_latent = 11
@@ -429,12 +430,14 @@ class Generator(nn.Module):
         channel_multiplier=1,
         blur_kernel=[1, 3, 3, 1],
         lr_mlp=0.01,
+        variational_style_encoder=False,
         **kwargs
     ):
         super().__init__()
         self.size = size
         self.latent_dim = latent_dim
         self.n_res = n_res
+        self.variational_style_encoder = variational_style_encoder
 
         style_dim = 512
         
@@ -444,7 +447,7 @@ class Generator(nn.Module):
 
         self.mapping = nn.Sequential(*mapping)
 
-        self.encoder = Encoder(size, latent_dim, num_down, n_res, channel_multiplier)
+        self.encoder = Encoder(size, latent_dim, num_down, n_res, channel_multiplier, variational_style_encoder=variational_style_encoder)
 
         self.log_size = int(math.log(size, 2)) #7
         in_log_size = self.log_size - num_down #7-2 or 7-3
@@ -503,6 +506,12 @@ class Generator(nn.Module):
 
     def forward(self, input, z=None):
         content, style = self.encode(input)
+
+        if self.variational_style_encoder:
+            style_mu = style[:,:style.size(1)//2]
+            style_logvar = style[:,style.size(1)//2:]
+            style = gaussian_reparameterization(style_mu, style_logvar)
+
         if z is None:
             out = self.decode(content, style)
         else:
@@ -672,7 +681,7 @@ class Discriminator(nn.Module):
 
 
 class Encoder(nn.Module):
-    def __init__(self, size, latent_dim, num_down=3, n_res=1, channel_multiplier=2, blur_kernel=[1, 3, 3, 1], **kwargs):
+    def __init__(self, size, latent_dim, num_down=3, n_res=1, channel_multiplier=2, blur_kernel=[1, 3, 3, 1], variational_style_encoder=False, **kwargs):
         super().__init__()
         self.num_down = num_down
         stem = [ConvLayer(3, channels[size], 1)]
@@ -698,7 +707,7 @@ class Encoder(nn.Module):
         style += [
             nn.Flatten(),
             EqualLinear(channels[4] * 4 * 4, channels[4], activation='fused_lrelu'), 
-            EqualLinear(channels[4], latent_dim),
+            EqualLinear(channels[4], latent_dim * 2 if variational_style_encoder else latent_dim),
               ]
         self.style = nn.Sequential(*style)
 
