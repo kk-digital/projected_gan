@@ -368,7 +368,7 @@ class Decoder(nn.Module):
 
 
 class Generator(nn.Module):
-    def __init__(self, latent_dim: int=8, ngf: int=64, nc=3, img_resolution=256, lite: bool=False, **kwargs):
+    def __init__(self, latent_dim: int=8, ngf: int=128, nc=3, img_resolution=256, lite: bool=False, **kwargs):
         super().__init__()
         self.latent_dim = latent_dim
         self.ngf = ngf
