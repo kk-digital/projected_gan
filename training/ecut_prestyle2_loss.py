@@ -15,8 +15,7 @@ import torch
 import torch.nn.functional as F
 import dnnlib
 from torch import nn
-import kornia.augmentation as K
-import kornia
+from torch.nn.utils import spectral_norm
 from models.gaussian_vae import gaussian_reparameterization, univariate_gaussian_KLD
 from models.gnr_networks import LatDiscriminator
 from models.transformer import VisioniTransformer
@@ -160,8 +159,8 @@ class ECUTPreStyle2Loss(Loss):
 
         if self.style_recon_nce and self.style_recon_nce_mlp_layers > 0:
             expand_dim = 512
-            mlp = [ nn.Linear(self.latent_dim, expand_dim) ]
-            mlp += [ nn.Sequential(nn.ReLU(), nn.Linear(expand_dim, expand_dim)) for _ in range(1,self.style_recon_nce_mlp_layers) ]
+            mlp = [ spectral_norm(nn.Linear(self.latent_dim, expand_dim)) ]
+            mlp += [ nn.Sequential(nn.ReLU(), spectral_norm(nn.Linear(expand_dim, expand_dim))) for _ in range(1,self.style_recon_nce_mlp_layers) ]
             self.F.style_nce_mlp = nn.Sequential(*mlp)
 
         self.F.create_mlp(feat)
