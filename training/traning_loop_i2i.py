@@ -523,10 +523,11 @@ def training_loop(
 
             with open(snapshot_pkl, 'wb') as f:
                pickle.dump(snapshot_data, f)
-            ckpt_p = os.path.dirname(snapshot_pkl)
-            ckpt_n = os.path.basename(snapshot_pkl)
-            with open(os.path.join(ckpt_p, f'{cur_tick}-{ckpt_n}'), 'wb') as f:
-               pickle.dump(snapshot_data, f)
+            if cur_tick > 0:
+                ckpt_p = os.path.dirname(snapshot_pkl)
+                ckpt_n = os.path.basename(snapshot_pkl)
+                with open(os.path.join(ckpt_p, f'{cur_tick}-{ckpt_n}'), 'wb') as f:
+                    pickle.dump(snapshot_data, f)
 
         # Evaluate metrics.
         # if (snapshot_data is not None) and (len(metrics) > 0):
