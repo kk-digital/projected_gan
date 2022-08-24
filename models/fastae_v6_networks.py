@@ -269,11 +269,14 @@ class StyleEncoder(nn.Module):
 
         act_layers += [ DownBlock(nfc[256], nfc[128], 'layer') ]
         self.act_layers = nn.Sequential(*act_layers)
+
+        for key in nfc.keys():
+            nfc[key] = nfc[key] // 4
         excitation_dim = nfc[64]  + nfc[32] + nfc[16] + nfc[8] + nfc[4]
 
         self.down_blocks = nn.ModuleList()
         self.excitation_blocks = nn.ModuleList()
-        self.down_blocks.append(DownBlock(nfc[128], nfc[64], 'layer'))
+        self.down_blocks.append(DownBlock(nfc[128] * 4, nfc[64], 'layer'))
         self.down_blocks.append(DownBlock(nfc[64],  nfc[32], 'layer'))
         self.down_blocks.append(DownBlock(nfc[32],  nfc[16], 'layer'))
         self.down_blocks.append(DownBlock(nfc[16],  nfc[8],  'layer'))
@@ -285,9 +288,9 @@ class StyleEncoder(nn.Module):
         self.excitation_blocks.append(ExcitationFeature(nfc[4],  nfc[4]))
 
         self.out = nn.Sequential(
-            EqualLinear(excitation_dim, excitation_dim * 2, activation='fused_lrelu'), 
-            EqualLinear(excitation_dim * 2, excitation_dim * 2, activation='fused_lrelu'), 
-            EqualLinear(excitation_dim * 2, latent_dim) 
+            EqualLinear(excitation_dim, excitation_dim, activation='fused_lrelu'), 
+            EqualLinear(excitation_dim, excitation_dim, activation='fused_lrelu'), 
+            EqualLinear(excitation_dim, latent_dim) 
         )
 
     def forward(self, img, **kwargs):
