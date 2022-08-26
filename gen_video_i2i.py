@@ -1,5 +1,4 @@
 import os
-import cv2
 import math
 import numpy as np
 import torch
@@ -155,7 +154,7 @@ def video_translation(
 
         # 2. Detect with dlib
         if faces is None:
-            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            gray = image.mean(2).astype(np.uint8)
             faces = face_detector(gray, 1)
         if len(faces):
             # For now only take biggest face
@@ -165,7 +164,6 @@ def video_translation(
         # Face crop with dlib and bounding box scale enlargement
         x, y, size = get_boundingbox(face, width, height)
         cropped_face = image[y:y+size, x:x+size]
-        cropped_face = cv2.cvtColor(cropped_face, cv2.COLOR_BGR2RGB)
         cropped_face = Image.fromarray(cropped_face)
         frame = test_transform(cropped_face).unsqueeze(0).to(device)
 
