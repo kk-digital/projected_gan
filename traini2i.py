@@ -144,6 +144,7 @@ def parse_comma_separated_list(s):
 @click.option('--lambda_style_KLD', type=float, default=0.0, show_default=True)
 @click.option('--lambda_style_recon', type=float, default=8.0, show_default=True)
 @click.option('--shuffle_style',   help='shuffle style codes of one batch', is_flag=True)
+@click.option('--normalize_style',   help='normalize style code with p=2', is_flag=True)
 
 # PatchNCE
 @click.option('--nce_layers',       help='feature layers',          type=str,        default=None,                 show_default=True)
@@ -288,6 +289,7 @@ def main(**kwargs):
         c.G_kwargs.ngf = opts.ngf
     if opts.latent_dim > 0:
         c.G_kwargs.latent_dim = opts.latent_dim
+    c.G_kwargs.normalize_style = opts.normalize_style
     
     c.F_kwargs = dnnlib.EasyDict(class_name=opts.netf)
     c.F_kwargs.use_mlp = opts.nce_mlp_layers != 0

@@ -1,7 +1,7 @@
 import math
 import torch.nn.functional as F 
 import torch
-from torch import nn
+from torch import nn, normal
 from torch.nn.parameter import Parameter
 from torch.nn.utils import spectral_norm
 from op import fused_leaky_relu
@@ -248,8 +248,17 @@ class ExcitationFeature(nn.Module):
     def forward(self, feat):
         return self.main(feat).flatten(1)
 
+class Normalize(nn.Module):
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+        self.args = args
+        self.kwargs = kwargs
+    
+    def forward(self, input):
+        return F.normalize(input, *self.args, **self.kwargs)
+
 class StyleEncoder(nn.Module):
-    def __init__(self, latent_dim, ngf=128, img_resolution=256, nc=3):
+    def __init__(self, latent_dim, ngf=128, img_resolution=256, nc=3, normalize_style: bool=False):
         super().__init__()
         self.img_resolution = img_resolution
         nfc_multi = {2: 16, 4:16, 8:8, 16:4, 32:2, 64:2, 128:1, 256:0.5,
@@ -285,12 +294,16 @@ class StyleEncoder(nn.Module):
         self.excitation_blocks.append(ExcitationFeature(nfc[16], nfc[16]))
         self.excitation_blocks.append(ExcitationFeature(nfc[8],  nfc[8]))
         self.excitation_blocks.append(ExcitationFeature(nfc[4],  nfc[4]))
+        self.normalize_style = normalize_style
 
-        self.out = nn.Sequential(
+        out = [
             EqualLinear(excitation_dim, excitation_dim, activation='fused_lrelu'), 
             EqualLinear(excitation_dim, excitation_dim, activation='fused_lrelu'), 
             EqualLinear(excitation_dim, latent_dim) 
-        )
+        ]
+        if normalize_style:
+            out.append(Normalize(p=2, dim=1))
+        self.out = nn.Sequential(*out)
 
     def forward(self, img, **kwargs):
         act = self.act_layers(img)
@@ -301,9 +314,9 @@ class StyleEncoder(nn.Module):
         return self.out(torch.cat(excitations, dim=1))
 
 class Encoder(nn.Module):
-    def __init__(self, latent_dim: int, ngf=128, nc: int=3, img_resolution: int=256, **kwargs):
+    def __init__(self, latent_dim: int, ngf=128, nc: int=3, img_resolution: int=256, normalize_style: bool=False, **kwargs):
         super().__init__()
-        self.style_encoder = StyleEncoder(latent_dim, ngf=ngf, img_resolution=img_resolution, nc=nc)
+        self.style_encoder = StyleEncoder(latent_dim, ngf=ngf, img_resolution=img_resolution, nc=nc, normalize_style=normalize_style)
         content_encoder = ContentEncoder(ngf=ngf, img_resolution=img_resolution, nc=nc)
         self.content_layers = content_encoder.layers
     
@@ -371,14 +384,14 @@ class Decoder(nn.Module):
 
 
 class Generator(nn.Module):
-    def __init__(self, latent_dim: int=8, ngf: int=128, nc=3, img_resolution=256, lite: bool=False, **kwargs):
+    def __init__(self, latent_dim: int=8, ngf: int=128, nc=3, img_resolution=256, lite: bool=False, normalize_style: bool=False, **kwargs):
         super().__init__()
         self.latent_dim = latent_dim
         self.ngf = ngf
         self.nc = nc
         self.img_resolution = img_resolution
         self.lite = lite
-        self.encoder = Encoder(latent_dim=latent_dim, ngf=ngf, nc=nc, img_resolution=img_resolution, lite=lite)
+        self.encoder = Encoder(latent_dim=latent_dim, ngf=ngf, nc=nc, img_resolution=img_resolution, lite=lite, normalize_style=normalize_style)
         self.decoder = Decoder(latent_dim=latent_dim, ngf=ngf, nc=nc, img_resolution=img_resolution, lite=lite)
     
     def style_encode(self, img):
