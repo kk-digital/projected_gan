@@ -59,15 +59,15 @@ class ECUTCAMWeightLoss(Loss):
         if feature_net == 'efficientnet_lite':
             self.netPre = losses.EfficientNetLite().to(self.device)
             self.nce_layers = [ 2,4,6 ]
-            self.attn_layers = [ 4,6,7 ]
+            self.attn_layers = [ 2,4,6, ]
         elif feature_net == 'vgg16':
             self.netPre = losses.VGG16().to(self.device)
-            self.nce_layers = [ 4,7,9 ]
-            self.attn_layers = [ 7,9,10 ]
+            self.nce_layers = [ 4, 7, 9 ]
+            self.attn_layers = [ 4, 7, 9 ]
         elif feature_net == 'learned':
             self.netPre = self.G
-            self.nce_layers = [ 0,4,8,12,16 ]
-            self.attn_layers = [ 8,10,12,18 ]
+            self.nce_layers = [ 4,8,12,16 ]
+            self.attn_layers = [ 4,8,12,16 ]
         else:
             raise NotImplemented(feature_net)
 
