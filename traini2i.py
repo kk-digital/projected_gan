@@ -194,7 +194,7 @@ def parse_comma_separated_list(s):
 @click.option('--load_size',        help='image load size',           metavar='INT',   type=click.IntRange(min=1), default=256)
 @click.option('--crop_size',        help='image size',                metavar='INT',   type=click.IntRange(min=1), default=256)
 @click.option('--flip',             help='random flip dataset image', metavar='INT',   type=bool,                  default=False, show_default=True)
-@click.option('--max_dataset_size', help='maximum dataset size',      metavar='INT',   type=click.IntRange(min=1), default=30000)
+@click.option('--max_dataset_size', help='maximum dataset size',      metavar='INT',   type=click.IntRange(min=1), default=300000)
 @click.option('--serial_batches',   help='serial batch',              metavar='INT',   type=bool,                  default=False, show_default=True)
 
 # logger
