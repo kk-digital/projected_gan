@@ -37,7 +37,7 @@ class CamWeightNet(nn.Module):
             self.rho = Parameter(torch.Tensor(1, len(attn_feats), 1, 1))
             self.rho.data.fill_(1)
     
-    def forward(self, attn_feats):
+    def forward(self, attn_feats, logit_only: bool=False):
         logits_list = []
         attn_map_list = []
 
@@ -54,6 +54,8 @@ class CamWeightNet(nn.Module):
             gmp_logits = gmp_ln(ap_val)
             logits = torch.cat([gap_logits, gmp_logits], dim=1)
             logits_list.append(logits)
+            if logit_only:
+                continue
 
             gap_ln_param = list(gap_ln.parameters())[1].unsqueeze(2).unsqueeze(3)
             gmp_ln_param = list(gmp_ln.parameters())[1].unsqueeze(2).unsqueeze(3)

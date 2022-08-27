@@ -32,7 +32,7 @@ class ECUTCAMWeightLoss(Loss):
                  feature_net: str, nce_idt: bool, num_patches: int,
                  adaptive_loss: bool, lambda_abdis: float=1.0, sigmoid_attn: bool = False,
                  run_dir: str='.', attn_detach: bool = True, cam_attn_weight: bool=False,
-                 lambda_GAN: float=1.0, lambda_NCE: float=1.0, lambda_identity: float = 0,
+                 lambda_GAN: float=1.0, lambda_NCE: float=1.0, lambda_classify: float=1, lambda_identity: float = 0,
                  blur_init_sigma=0, blur_fade_kimg=0, **kwargs):
         super().__init__()
         self.device = device
@@ -49,6 +49,7 @@ class ECUTCAMWeightLoss(Loss):
         self.num_patches = num_patches
         self.lambda_GAN = lambda_GAN
         self.lambda_NCE = lambda_NCE
+        self.lambda_classify = lambda_classify
         self.lambda_abdis = lambda_abdis
         self.lambda_identity = lambda_identity
         self.blur_init_sigma = blur_init_sigma
@@ -191,15 +192,24 @@ class ECUTCAMWeightLoss(Loss):
                 attn_real_A, feats_real_A = self.get_nce_attn(feats_real_A)
                 attn_real_B, feats_real_B = self.get_nce_attn(feats_real_B)
                 attn_A, logits_real_A = self.F.attn_net(attn_real_A)
-                attn_B, logits_real_B = self.F.attn_net(attn_real_B)
+                attn_B, logits_real_B = self.F.attn_net(attn_real_B, logit_only=True)
                 ab_dis_loss = 0
                 for logit_A, logit_B in zip(logits_real_A, logits_real_B):
                     ab_dis_loss += (-logit_A).mean()
                     ab_dis_loss += logit_B.mean()
                 training_stats.report('Loss/G/abdis', ab_dis_loss)
 
+                feats_fake_B = self.netPre(fake_B, self.feat_layers, encode_only=True)
+                attn_fake_B, feats_fake_B = self.get_nce_attn(feats_fake_B)
+                if self.lambda_classify > 0:
+                    _, logits_fake_B = self.F.attn_net(attn_fake_B, logit_only=True)
+                    loss_Gmain_classify = 0
+                    for logit in logits_fake_B:
+                        loss_Gmain_classify += logit.mean()
+                    loss_Gmain = loss_Gmain + loss_Gmain_classify * self.lambda_classify
+                    training_stats.report('Loss/G/classify', loss_Gmain_classify)
+
                 if self.lambda_NCE > 0:
-                    feats_fake_B = self.netPre(fake_B, self.nce_layers, encode_only=True)
                     loss_Gmain_NCE = self.calculate_NCE_loss(feats_real_A, feats_fake_B, attn_A)
                     if False:
                         out = image_grid([
