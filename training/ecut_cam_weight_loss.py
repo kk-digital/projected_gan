@@ -64,7 +64,7 @@ class ECUTCAMWeightLoss(Loss):
         elif feature_net == 'vgg16':
             self.netPre = losses.VGG16().to(self.device)
             self.nce_layers = [ 4, 7, 9 ]
-            self.attn_layers = [ 4, 7, 9 ]
+            self.attn_layers = [ 7, 9, 10 ]
         elif feature_net == 'learned':
             self.netPre = self.G
             self.nce_layers = [ 4,8,12,16 ]
