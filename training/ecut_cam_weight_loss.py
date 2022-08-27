@@ -122,6 +122,7 @@ class ECUTCAMWeightLoss(Loss):
         attn_weight = []
         if attn_weight_hw is not None:
             for aw, ids in zip(attn_weight_hw, sample_ids):
+                aw = 1 - aw
                 baw = aw.view(aw.size(0), -1)[:, ids]
                 attn_weight.append(baw.view(-1))
         else:
