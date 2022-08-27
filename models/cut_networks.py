@@ -183,3 +183,96 @@ class PatchSampleF(nn.Module):
                 x_sample = x_sample.permute(0, 2, 1).reshape([B, x_sample.shape[-1], H, W])
             return_feats.append(x_sample)
         return return_feats, return_ids
+
+
+class AttnPatchSampleF(nn.Module):
+    def __init__(self, init_type='normal', init_gain=0.02, nc=256, gpu_ids=[], **kwargs):
+        # potential issues: currently, we use the same patch_ids for multiple images in the batch
+        super().__init__()
+        self.l2norm = Normalize(2)
+        self.nc = nc  # hard-coded
+        self.mlp_init = False
+        self.init_type = init_type
+        self.init_gain = init_gain
+        self.gpu_ids = gpu_ids
+
+    def create_mlp(self, feats):
+        raw_feats, attn_feats = feats
+
+        for mlp_id, feat, attn_feat in zip(range(len(raw_feats)), raw_feats, attn_feats):
+            assert len(feat.shape) == 4
+            _, input_nc, _, _ = feat.shape
+            mlp_list = [ nn.Linear(input_nc, self.nc), nn.ReLU(), nn.Linear(self.nc, self.nc) ]
+            mlp = nn.Sequential(*mlp_list)
+            setattr(self, 'mlp_%d' % mlp_id, mlp)
+
+            attn_dim = attn_feat.shape[1]
+            LNClassifier = [ nn.Linear(attn_dim, 1), nn.Sigmoid() ]
+            lnc = nn.Sequential(*LNClassifier)
+            setattr(self, 'lnc_%d' % mlp_id, lnc)
+ 
+        init_net(self, self.init_type, self.init_gain, self.gpu_ids)
+        self.mlp_init = True
+
+    def forward(self, feats, num_patches=64, patch_ids=None):
+        assert num_patches > 0
+        if patch_ids is not None:
+            patch_ids_raw, patch_ids_attn = patch_ids
+        else:
+            patch_ids_raw, patch_ids_attn = None, None
+        return_ids_raw, return_ids_attn = [], []
+        return_ids = (return_ids_raw, return_ids_attn)
+        return_feats_raw, return_feats_attn = [], []
+        return_feats = (return_feats_raw, return_feats_attn)
+        return_weights_raw, return_weights_attn = [], []
+        return_weights = (return_weights_raw, return_weights_attn)
+        if not self.mlp_init:
+            self.create_mlp(feats)
+
+        raw_feats, attn_feats = feats
+        for feat_id, feat, attn_feat in zip(range(len(raw_feats)), raw_feats, attn_feats):
+            device = feat.device
+            _, _, fh, fw = feat.shape
+            feat = feat.permute(0, 2, 3, 1).flatten(1, 2)
+            if patch_ids_raw is not None:
+                patch_id = patch_ids_raw[feat_id]
+            else:
+                patch_id = np.random.permutation(feat.shape[1])
+                patch_id = patch_id[:int(min(num_patches, patch_id.shape[0]))]  # .to(patch_ids.device)
+            patch_id = torch.tensor(patch_id, dtype=torch.long, device=device)
+            return_ids_raw.append(patch_id)
+            x_sample = feat[:, patch_id, :].flatten(0, 1)  # reshape(-1, x.shape[1])
+            mlp = getattr(self, 'mlp_%d' % feat_id)
+            x_sample = mlp(x_sample)
+            x_sample = self.l2norm(x_sample)
+            return_feats_raw.append(x_sample)
+
+            attn_feat_old = attn_feat.permute(0, 2, 3, 1)
+            attn_feat = attn_feat_old.flatten(1, 2)
+            if patch_ids_attn is not None:
+                patch_id_attn = patch_ids_attn[feat_id]
+            else:
+                patch_id_attn = np.random.permutation(attn_feat.shape[1])
+                patch_id_attn = patch_id_attn[:int(min(64, patch_id_attn.shape[0]))]  # .to(patch_ids.device)
+            patch_id_attn = torch.tensor(patch_id_attn, dtype=torch.long, device=device)
+            return_ids_attn.append(patch_id_attn)
+            attn_sample = attn_feat[:, patch_id_attn, :].flatten(0, 1)  # reshape(-1, x.shape[1])
+            attn_sample = self.l2norm(attn_sample)
+            return_feats_attn.append(attn_sample)
+
+            if patch_ids is None:
+                lnc = getattr(self, 'lnc_%d' % feat_id)
+                weights = lnc(attn_feat_old).flatten(2,3)
+                v1 = weights.flatten(1,2)
+                return_weights_attn.append(v1[:, patch_id_attn].flatten(0, 1))
+
+                _, wh, ww = weights.shape
+                if wh != fh:
+                    assert fh % wh == 0
+                    weights = torch.repeat_interleave(weights, fh // wh, 1)
+                if ww != fw:
+                    assert fw % ww == 0
+                    weights = torch.repeat_interleave(weights, fw // ww, 2)
+                v2 = 1 - weights.flatten(1,2)
+                return_weights_raw.append(v2[:, patch_id].flatten(0,1))
+        return return_feats, return_weights, return_ids
