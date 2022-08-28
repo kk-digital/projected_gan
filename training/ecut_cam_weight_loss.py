@@ -199,17 +199,8 @@ class ECUTCAMWeightLoss(Loss):
                     ab_dis_loss += logit_B.mean()
                 training_stats.report('Loss/G/abdis', ab_dis_loss)
 
-                feats_fake_B = self.netPre(fake_B, self.feat_layers, encode_only=True)
-                attn_fake_B, feats_fake_B = self.get_nce_attn(feats_fake_B)
-                if self.lambda_classify > 0:
-                    _, logits_fake_B = self.F.attn_net(attn_fake_B, logit_only=True)
-                    loss_Gmain_classify = 0
-                    for logit in logits_fake_B:
-                        loss_Gmain_classify += logit.mean()
-                    loss_Gmain = loss_Gmain + loss_Gmain_classify * self.lambda_classify
-                    training_stats.report('Loss/G/classify', loss_Gmain_classify)
-
                 if self.lambda_NCE > 0:
+                    feats_fake_B = self.netPre(fake_B, self.nce_layers, encode_only=True)
                     loss_Gmain_NCE = self.calculate_NCE_loss(feats_real_A, feats_fake_B, attn_A)
                     if False:
                         out = image_grid([
@@ -241,6 +232,21 @@ class ECUTCAMWeightLoss(Loss):
 
             with torch.autograd.profiler.record_function('Gmain_backward'):
                 loss_Gmain.backward()
+
+            if self.lambda_classify > 0:
+                self.F.attn_net.requires_grad_(False)
+                fake_B_ = self.run_G(real_A)
+                attn_fake_B_ = self.netPre(fake_B_, self.attn_layers, encode_only=True)
+                with torch.autograd.profiler.record_function('Gmain_classify_forward'):
+                    _, logits_fake_B = self.F.attn_net(attn_fake_B_, logit_only=True)
+                    loss_Gmain_classify = 0
+                    for logit in logits_fake_B:
+                        loss_Gmain_classify += logit.mean()
+                    loss_Gmain_classify = loss_Gmain_classify * self.lambda_classify
+                    training_stats.report('Loss/G/classify', loss_Gmain_classify)
+
+                with torch.autograd.profiler.record_function('Gmain_classify_backward'):
+                    loss_Gmain_classify.backward()
 
         if do_Dmain:
 
