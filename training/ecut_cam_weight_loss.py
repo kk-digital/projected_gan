@@ -233,6 +233,21 @@ class ECUTCAMWeightLoss(Loss):
             with torch.autograd.profiler.record_function('Gmain_backward'):
                 loss_Gmain.backward()
 
+            if self.lambda_classify > 0:
+                self.F.attn_net.requires_grad_(False)
+                fake_B_ = self.run_G(real_A)
+                attn_fake_B_ = self.netPre(fake_B_, self.attn_layers, encode_only=True)
+                with torch.autograd.profiler.record_function('Gmain_classify_forward'):
+                    _, logits_fake_B = self.F.attn_net(attn_fake_B_, logit_only=True)
+                    loss_Gmain_classify = 0
+                    for logit in logits_fake_B:
+                        loss_Gmain_classify += logit.mean()
+                    loss_Gmain_classify = F.sigmoid(2 * loss_Gmain_classify / ab_dis_loss.detach()) * self.lambda_classify
+                    training_stats.report('Loss/G/classify', loss_Gmain_classify)
+
+                with torch.autograd.profiler.record_function('Gmain_classify_backward'):
+                    loss_Gmain_classify.backward()
+
         if do_Dmain:
 
             # Dmain: Minimize logits for generated images.
