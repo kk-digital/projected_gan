@@ -242,8 +242,8 @@ class ECUTCAMWeightLoss(Loss):
                     loss_Gmain_classify = 0
                     for logit in logits_fake_B:
                         loss_Gmain_classify += logit.mean()
-                    loss_Gmain_classify = F.sigmoid(2 * loss_Gmain_classify / ab_dis_loss.detach()) * self.lambda_classify
                     training_stats.report('Loss/G/classify', loss_Gmain_classify)
+                    loss_Gmain_classify = F.sigmoid(2 * loss_Gmain_classify / torch.abs(ab_dis_loss.detach())) * self.lambda_classify
 
                 with torch.autograd.profiler.record_function('Gmain_classify_backward'):
                     loss_Gmain_classify.backward()
