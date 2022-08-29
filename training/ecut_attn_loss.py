@@ -8,7 +8,8 @@
 #
 # modified by Axel Sauer for "Projected GANs Converge Faster"
 #
-from typing import Tuple
+from functools import reduce
+from typing import List, Tuple
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -111,7 +112,9 @@ class ECUTAttnLoss(Loss):
         feat_q_pool, _, _ = self.F(feat_q, self.num_patches, sample_ids)
         feat_k_pool = feat_k_pool[0] + feat_k_pool[1]
         feat_q_pool = feat_q_pool[0] + feat_q_pool[1]
-        patches_weights = patches_weights[0] + patches_weights[1]
+        patches_weights: List[torch.Tensor] = patches_weights[0] + patches_weights[1]
+        pwm, pwv = reduce(lambda b, pw: pw.mean() + b, patches_weights), reduce(lambda b, pw: pw.var() + b, patches_weights)
+        pwm, pwv = pwm / len(patches_weights), pwv / len(patches_weights)
 
         total_nce_loss = 0.0
         n_layers = len(patches_weights)
@@ -121,7 +124,7 @@ class ECUTAttnLoss(Loss):
             loss = self.criterionNCE(f_q, f_k, patches_weight)
             total_nce_loss += loss.mean() * weight
         
-        return total_nce_loss
+        return total_nce_loss, (pwm, pwv)
 
     def run_G(self, real, update_emas=False):
         fake = self.G(real)
@@ -167,11 +170,15 @@ class ECUTAttnLoss(Loss):
                     training_stats.report('Loss/G/identity', loss_Gmain_idt)
 
                 if self.lambda_NCE > 0:
-                    loss_Gmain_NCE = self.calculate_NCE_loss(self.get_nce_features(real_A), self.get_nce_features(fake_B))
+                    loss_Gmain_NCE, weight_stats = self.calculate_NCE_loss(self.get_nce_features(real_A), self.get_nce_features(fake_B))
                     training_stats.report('Loss/G/NCE', loss_Gmain_NCE)
+                    training_stats.report('Loss/F/weight_mean', weight_stats[0])
+                    training_stats.report('Loss/F/weight_var', weight_stats[1])
                     if self.nce_idt:
-                        loss_Gmain_NCE_idt = self.calculate_NCE_loss(self.get_nce_features(real_B), self.get_nce_features(fake_idt_B))
+                        loss_Gmain_NCE_idt, idt_weight_stats = self.calculate_NCE_loss(self.get_nce_features(real_B), self.get_nce_features(fake_idt_B))
                         training_stats.report('Loss/G/NCE_idt', loss_Gmain_NCE_idt)
+                        training_stats.report('Loss/F/idt_weight_mean', idt_weight_stats[0])
+                        training_stats.report('Loss/F/idt_weight_var', idt_weight_stats[1])
                         loss_Gmain_NCE = (loss_Gmain_NCE + loss_Gmain_NCE_idt) * 0.5
                     loss_Gmain = loss_Gmain + loss_Gmain_NCE
 

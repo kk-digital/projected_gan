@@ -264,6 +264,9 @@ class AttnPatchSampleF(nn.Module):
                 lnc = getattr(self, 'lnc_%d' % feat_id)
                 weights = lnc(attn_feat_old).flatten(2,3)
                 v1 = weights.flatten(1,2)
+                w = weights.mean(dim=1).mean(dim=1)
+                w = w.view(w.size(0), 1, 1)
+                weights = 0.5 * weights / w.expand(weights.shape)
                 return_weights_attn.append(v1[:, patch_id_attn].flatten(0, 1))
 
                 _, wh, ww = weights.shape
