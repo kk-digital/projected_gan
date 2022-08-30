@@ -242,7 +242,7 @@ def training_loop(
     F = dnnlib.util.construct_class_by_name(**F_kwargs).train().requires_grad_(False).to(device) # subclass of torch.nn.Module
     G_ema = copy.deepcopy(G).eval()
 
-    loss = dnnlib.util.construct_class_by_name(device=device, G=G, G_ema=G_ema, D=D, F=F, resolution=training_set.resolution, **loss_kwargs) # subclass of training.loss.Loss
+    loss = dnnlib.util.construct_class_by_name(device=device, G=G, G_ema=G_ema, D=D, F=F, resolution=training_set.resolution, total_kimg=total_kimg, **loss_kwargs) # subclass of training.loss.Loss
     G_ema = copy.deepcopy(G).eval()
     F_ema = copy.deepcopy(F).eval()
 

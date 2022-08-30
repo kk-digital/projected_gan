@@ -214,7 +214,7 @@ class AttnPatchSampleF(nn.Module):
         init_net(self, self.init_type, self.init_gain, self.gpu_ids)
         self.mlp_init = True
 
-    def forward(self, feats, num_patches=64, patch_ids=None):
+    def forward(self, feats, num_patches=64, patch_ids=None, weights_strategy: str=None):
         assert num_patches > 0
         if patch_ids is not None:
             patch_ids_raw, patch_ids_attn = patch_ids
@@ -260,7 +260,7 @@ class AttnPatchSampleF(nn.Module):
             attn_sample = self.l2norm(attn_sample)
             return_feats_attn.append(attn_sample)
 
-            if patch_ids is None:
+            if weights_strategy == 'half_learned':
                 lnc = getattr(self, 'lnc_%d' % feat_id)
                 weights = lnc(attn_feat_old).flatten(2,3)
                 v1 = weights.flatten(1,2)

@@ -31,7 +31,7 @@ class Loss:
 class ECUTAttnLoss(Loss):
     def __init__(self, device, G, D, F, G_ema, resolution: int,
                  nce_layers: list, feature_net: str, nce_idt: bool, num_patches: int,
-                 sim_pnorm: float = 0,
+                 total_kimg: int, sim_pnorm: float = 0, weights_strategy: str = 'linear_decay',
                  feature_attn_layers: int=0, patch_max_shape: Tuple[int,int]=(256,256),
                  lambda_GAN: float=1.0, lambda_NCE: float=1.0, lambda_identity: float = 0,
                  blur_init_sigma=0, blur_fade_kimg=0, **kwargs):
@@ -44,6 +44,8 @@ class ECUTAttnLoss(Loss):
         assert feature_attn_layers > 0
         assert isinstance(F, AttnPatchSampleF)
         self.resolution = resolution
+        self.total_kimg = total_kimg
+        self.weights_strategy = weights_strategy
         self.nce_idt = nce_idt
         self.num_patches = num_patches
         self.feature_attn_layers = feature_attn_layers
@@ -107,18 +109,29 @@ class ECUTAttnLoss(Loss):
         feat, attn_feat = self.get_nce_features(fimg)
         self.F.create_mlp((feat, attn_feat))
 
-    def calculate_NCE_loss(self, feat_k, feat_q):
-        feat_k_pool, patches_weights, sample_ids = self.F(feat_k, self.num_patches, None)
+    def calculate_NCE_loss(self, feat_k, feat_q, cur_nimg):
+        feat_k_pool, patches_weights, sample_ids = self.F(feat_k, self.num_patches, None, weights_strategy=self.weights_strategy)
         feat_q_pool, _, _ = self.F(feat_q, self.num_patches, sample_ids)
+
+        pwm, pwv = 0, 0
+        if self.weights_strategy == 'linear_decay':
+            attn_weight = cur_nimg / (1000 * self.total_kimg)
+            raw_weight = 1 - attn_weight
+            k1 = [ torch.zeros([x.size(0)], device=x.device, dtype=x.dtype).fill_(raw_weight) for x in feat_k_pool[0] ]
+            k2 = [ torch.zeros([x.size(0)], device=x.device, dtype=x.dtype).fill_(raw_weight) for x in feat_k_pool[1] ]
+            patches_weights = k1 + k2
+            pass
+        else:
+            patches_weights: List[torch.Tensor] = patches_weights[0] + patches_weights[1]
+            pwm, pwv = reduce(lambda b, pw: pw.mean() + b, patches_weights), reduce(lambda b, pw: pw.var() + b, patches_weights)
+            pwm, pwv = pwm / len(patches_weights), pwv / len(patches_weights)
+
         feat_k_pool = feat_k_pool[0] + feat_k_pool[1]
         feat_q_pool = feat_q_pool[0] + feat_q_pool[1]
-        patches_weights: List[torch.Tensor] = patches_weights[0] + patches_weights[1]
-        pwm, pwv = reduce(lambda b, pw: pw.mean() + b, patches_weights), reduce(lambda b, pw: pw.var() + b, patches_weights)
-        pwm, pwv = pwm / len(patches_weights), pwv / len(patches_weights)
 
         total_nce_loss = 0.0
-        n_layers = len(patches_weights)
-        weights = [ 1 / n_layers for i in range(0, n_layers) ]
+        n_layers = len(feat_k_pool)
+        weights = [ 2 / n_layers for i in range(0, n_layers) ]
 
         for f_q, f_k, patches_weight, weight in zip(feat_q_pool, feat_k_pool, patches_weights, weights):
             loss = self.criterionNCE(f_q, f_k, patches_weight)
@@ -170,12 +183,12 @@ class ECUTAttnLoss(Loss):
                     training_stats.report('Loss/G/identity', loss_Gmain_idt)
 
                 if self.lambda_NCE > 0:
-                    loss_Gmain_NCE, weight_stats = self.calculate_NCE_loss(self.get_nce_features(real_A), self.get_nce_features(fake_B))
+                    loss_Gmain_NCE, weight_stats = self.calculate_NCE_loss(self.get_nce_features(real_A), self.get_nce_features(fake_B), cur_nimg)
                     training_stats.report('Loss/G/NCE', loss_Gmain_NCE)
                     training_stats.report('Loss/F/weight_mean', weight_stats[0])
                     training_stats.report('Loss/F/weight_var', weight_stats[1])
                     if self.nce_idt:
-                        loss_Gmain_NCE_idt, idt_weight_stats = self.calculate_NCE_loss(self.get_nce_features(real_B), self.get_nce_features(fake_idt_B))
+                        loss_Gmain_NCE_idt, idt_weight_stats = self.calculate_NCE_loss(self.get_nce_features(real_B), self.get_nce_features(fake_idt_B), cur_nimg)
                         training_stats.report('Loss/G/NCE_idt', loss_Gmain_NCE_idt)
                         training_stats.report('Loss/F/idt_weight_mean', idt_weight_stats[0])
                         training_stats.report('Loss/F/idt_weight_var', idt_weight_stats[1])

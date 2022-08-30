@@ -156,6 +156,7 @@ def parse_comma_separated_list(s):
 @click.option('--nce_mlp_layers',   help='NCE mlp layers',           metavar='INT',   type=click.IntRange(min=0, max=10), default=2)
 @click.option('--nce_sim_pnorm',    help='if greater than 0, using pnorm to compute similarity instead of consine similarity', type=float,  default=0.0, show_default=True)
 @click.option('--feature_attn_layers', help='if greater thatn 0 then apply ViT to feature before PatchNCE', metavar='INT', type=click.IntRange(min=0, max=6), default=0)
+@click.option('--weight_strategy',     help='weight strategy',          type=click.Choice(['linear_decay', 'half_learned']), default='linear_decay', show_default=True)
 
 # SMap
 @click.option('--attn_real_fake', help='use both real and fake features to compute attention', is_flag=True)
@@ -378,6 +379,7 @@ def main(**kwargs):
     c.loss_kwargs.randn_style = opts.randn_style
     c.loss_kwargs.same_style_encoder = opts.same_style_encoder
     c.loss_kwargs.shuffle_style = opts.shuffle_style
+    c.loss_kwargs.weight_strategy = opts.weight_strategy
     c.use_ema_model = opts.resume_ema
     c.gpuinfo_interval = opts.gpuinfo_interval
     c.sample_image_grid = not opts.dont_sample_grid
