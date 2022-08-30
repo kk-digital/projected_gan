@@ -28,6 +28,8 @@ from models.fastae_v2_networks import Encoder as Ev2, Generator as Gv2
 from models.fastae_v3_networks import Encoder as Ev3, Generator as Gv3
 from models.fastae_v5_networks import Encoder as Ev9, Generator as Gv9
 from models.fastae_v6_networks import Encoder as Ev10, Generator as Gv10
+from models.fastae_v7_networks import Encoder as Ev11, Generator as Gv11
+from models.fastae_v8_networks import Encoder as Ev12, Generator as Gv12
 from models.style_networks import Encoder as Ev4, Generator as Gv4
 from models.style_v2_networks import Encoder as Ev5, Generator as Gv5
 from models.style_v3_networks import Encoder as Ev7, Generator as Gv7
@@ -43,6 +45,8 @@ valid_gen_encoder = [
     (Gv8, Ev8),
     (Gv9, Ev9),
     (Gv10, Ev10),
+    (Gv11, Ev11),
+    (Gv12, Ev12),
 ]
 
 class Loss:
