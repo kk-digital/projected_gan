@@ -374,7 +374,7 @@ class Decoder(nn.Module):
         feat_last = feat_256
 
         if self.img_resolution > 256:
-            feat_512 = self.sfeat_512(feat_256)
+            feat_512 = self.sfeat_512(feat_256, style)
             feat_last = feat_512
 
         if self.img_resolution > 512:

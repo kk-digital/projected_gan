@@ -46,8 +46,8 @@ pretrained_modules = [ ['feature_network'], [ 'encoder', 'style_encoder', 'proje
 def setup_snapshot_image_grid(eval_set, random_seed=0):
     rnd = np.random.RandomState(random_seed)
     min_w, min_h, max_w, max_h = 7, 4, 32, 24
-    gw = np.clip(7680 // eval_set.resolution, min_w, max_w)
-    gh = np.clip(4320 // eval_set.resolution, min_h, max_h)
+    gw = np.clip(7680*2 // eval_set.resolution, min_w, max_w)
+    gh = np.clip(4320*2 // eval_set.resolution, min_h, max_h)
     gh //= 2
 
     if len(eval_set) < gw * gh:
