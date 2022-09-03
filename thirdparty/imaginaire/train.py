@@ -11,6 +11,7 @@ import torch.autograd.profiler as profiler
 import wandb
 
 import imaginaire.config
+from tdlogger import TdLogger
 from imaginaire.config import Config
 from imaginaire.utils.cudnn import init_cudnn
 from imaginaire.utils.dataset import get_train_and_val_dataloader
@@ -54,6 +55,11 @@ def main():
         args.seed = random.randint(0, 10000)
     set_random_seed(args.seed, by_rank=True)
     cfg = Config(args.config)
+    name = f'{cfg.trainer.type}-{cfg.data.name}'
+    if 'name' in cfg:
+        name = name + cfg.name
+    logger = TdLogger(cfg.tdlogger_endpoint, "", 100000, (cfg.tdlogger_user, cfg.tdlogger_pass), group_prefix=name, disabled=cfg.tdlogger_disabled)
+    logger.send(cfg, "options", direct=True)
     try:
         from userlib.auto_resume import AutoResume
         AutoResume.init()
@@ -93,6 +99,7 @@ def main():
                           opt_G, opt_D,
                           sch_G, sch_D,
                           train_data_loader, val_data_loader)
+    trainer.logger = logger
     resumed, current_epoch, current_iteration = trainer.load_checkpoint(cfg, args.checkpoint, args.resume)
 
     # Initialize Wandb.
@@ -122,6 +129,7 @@ def main():
     # Start training.
     for epoch in range(current_epoch, cfg.max_epoch):
         print('Epoch {} ...'.format(epoch))
+        logger.info(f'Epoch {epoch}')
         if not args.single_gpu:
             train_data_loader.sampler.set_epoch(current_epoch)
         trainer.start_of_epoch(current_epoch)

@@ -9,6 +9,7 @@ import time
 import torch
 import torchvision
 import wandb
+import GPUtil
 from torch.cuda.amp import GradScaler, autocast
 from tqdm import tqdm
 
@@ -20,6 +21,17 @@ from imaginaire.utils.misc import to_cuda, to_device, requires_grad, to_channels
 from imaginaire.utils.model_average import (calibrate_batch_norm_momentum,
                                             reset_batch_norm)
 from imaginaire.utils.visualization import tensor2pilimage
+from tdlogger import TdLogger
+
+
+def report_gpuinfo(logger: TdLogger):
+    gpus = GPUtil.getGPUs()
+    stats = {}
+    for i, gpu in enumerate(gpus):
+            stats[f"Load/GPU{i}"] = gpu.load,
+            stats[f"MemLoad/GPU{i}"] = gpu.memoryUsed / gpu.memoryTotal,
+            stats[f"MemTotal/GPU{i}"] = gpu.memoryTotal
+    logger.send(stats, "GPUInfo")
 
 
 class BaseTrainer(object):
@@ -52,6 +64,7 @@ class BaseTrainer(object):
 
         # Initialize models and data loaders.
         self.cfg = cfg
+        self.logger: TdLogger = None
         self.net_G = net_G
         if cfg.trainer.model_average_config.enabled:
             # Two wrappers (DDP + model average).
@@ -181,12 +194,12 @@ class BaseTrainer(object):
         custom meters.
         """
         # Logs that are shared by all models.
-        self._write_to_meters({'time/iteration': self.time_iteration,
-                               'time/epoch': self.time_epoch,
-                               'optim/gen_lr': self.sch_G.get_last_lr()[0],
-                               'optim/dis_lr': self.sch_D.get_last_lr()[0]},
-                              self.meters,
-                              reduce=False)
+        self._write_to_meters({
+                'time/iteration': self.time_iteration,
+                'time/epoch': self.time_epoch,
+                'optim/gen_lr': self.sch_G.get_last_lr()[0],
+                'optim/dis_lr': self.sch_D.get_last_lr()[0]
+            }, self.meters, reduce=False)
         # Logs for loss values. Different models have different losses.
         self._write_loss_meters()
         # Other custom logs.
@@ -223,8 +236,18 @@ class BaseTrainer(object):
 
     def _flush_meters(self, meters):
         r"""Flush all meters using the current iteration."""
-        for meter in meters.values():
-            meter.flush(self.current_iteration)
+        dicts = {}
+        for key, meter in meters.items():
+            val = meter.flush(self.current_iteration)
+            ks = key.split('/')
+            maink = ks[0]
+            if maink not in dicts:
+                dicts[maink] = {}
+            ok = '/'.join(ks[1:]) if len(ks) > 1 else 'value'
+            dicts[maink][ok] = val
+        
+        for k, v in dicts.items():
+            self.logger.send(v, k)
 
     def _pre_save_checkpoint(self):
         r"""Implement the things you want to do before saving a checkpoint.
@@ -436,12 +459,15 @@ class BaseTrainer(object):
         elif current_iteration % self.cfg.image_display_iter == 0:
             image_path = os.path.join(self.cfg.logdir, 'images', 'current.jpg')
             self.save_image(image_path, data)
+            self.logger.sendBlobFile(image_path, f'{self.current_iteration}.jpg', f'/validation_images/{self.logger.group_prefix}/{self.current_iteration}.jpg', 'validation_images')
 
         # Logging.
         self._write_tensorboard()
         if current_iteration % self.cfg.logging_iter == 0:
             # Write all logs to tensorboard.
             self._flush_meters(self.meters)
+            report_gpuinfo(self.logger)
+            self.logger.flush()
 
         from torch.distributed import barrier
         import torch.distributed as dist

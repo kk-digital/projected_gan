@@ -125,12 +125,14 @@ class Meter(object):
                     wait_duration=timedelta(minutes=120)
                 )
         filtered_values = list(filter(lambda x: math.isfinite(x), self.values))
+        value = 0
         if float(len(filtered_values)) != 0:
             value = float(sum(filtered_values)) / float(len(filtered_values))
             if is_master():
                 write_summary(self.name, value, step)
                 wandb.log({self.name: value}, step=step)
         self.reset()
+        return value
 
     @master_only
     def write_image(self, img_grid, step):
