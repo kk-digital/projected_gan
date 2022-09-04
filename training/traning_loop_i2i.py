@@ -39,7 +39,7 @@ import legacy
 from i2imetrics.all_score import calculate_scores_given_paths
 
 
-pretrained_modules = [ ['feature_network'], [ 'encoder', 'style_encoder', 'projector'] ]
+pretrained_modules = [ ['feature_network'], [ 'projector' ], [ 'encoder', 'style_encoder', 'projector'] ]
 
 #----------------------------------------------------------------------------
 
