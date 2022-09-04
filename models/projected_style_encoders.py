@@ -19,7 +19,7 @@ class StyleEncoder(nn.Module):
     def forward(self, img):
         _, _, h, w = img.shape
         if h != 256 or w != 256:
-            img = F.interpolate(img, (25,256), mode='bilinear')
+            img = F.interpolate(img, (256,256), mode='bilinear')
 
         projected = self.projector(img)
         return self.model(projected)
