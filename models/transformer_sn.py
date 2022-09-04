@@ -1,4 +1,5 @@
 from typing import Tuple
+from torch.nn.utils import spectral_norm
 import torch
 import torch.nn as nn
 
@@ -27,9 +28,9 @@ class Attention(nn.Module):
         head_dim = dim // num_heads
         self.scale = head_dim ** -0.5
 
-        self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
+        self.qkv = spectral_norm(nn.Linear(dim, dim * 3, bias=qkv_bias))
         self.attn_drop = nn.Dropout(attn_drop)
-        self.proj = nn.Linear(dim, dim)
+        self.proj = spectral_norm(nn.Linear(dim, dim))
         self.proj_drop = nn.Dropout(proj_drop)
 
     def forward(self, x):
@@ -64,21 +65,21 @@ class FeedForward(nn.Module):
             Original: https://arxiv.org/pdf/2010.11929.pdf
             """
             self.net = nn.Sequential(
-                nn.Linear(dim, hidden_dim),
+                spectral_norm(nn.Linear(dim, hidden_dim)),
                 nn.GELU(),
                 nn.Dropout(p=dropout_rate),
-                nn.Linear(hidden_dim, dim),
+                spectral_norm(nn.Linear(hidden_dim, dim)),
             )
         else:
             """
             Scaled ReLU: https://arxiv.org/pdf/2109.03810.pdf
             """
             self.net = nn.Sequential(
-                nn.Conv1d(dim, hidden_dim, kernel_size=1, stride=1),
+                spectral_norm(nn.Conv1d(dim, hidden_dim, kernel_size=1, stride=1)),
                 nn.BatchNorm1d(hidden_dim),
                 nn.GELU(),
                 nn.Dropout(p=dropout_rate),
-                nn.Conv1d(hidden_dim, dim, kernel_size=1, stride=1),
+                spectral_norm(nn.Conv1d(hidden_dim, dim, kernel_size=1, stride=1)),
                 nn.BatchNorm1d(dim),
                 nn.GELU(),
             )
@@ -115,11 +116,11 @@ class OutputLayer(nn.Module):
         self.num_classes = num_classes
         modules = []
         if representation_size:
-            modules.append(nn.Linear(embedding_dim, representation_size))
+            modules.append(spectral_norm(nn.Linear(embedding_dim, representation_size)))
             modules.append(nn.Tanh())
-            modules.append(nn.Linear(representation_size, num_classes))
+            modules.append(spectral_norm(nn.Linear(representation_size, num_classes)))
         else:
-            modules.append(nn.Linear(embedding_dim, num_classes))
+            modules.append(spectral_norm(nn.Linear(embedding_dim, num_classes)))
 
         self.net = nn.Sequential(*modules)
 
@@ -205,7 +206,7 @@ class Transformer(nn.Module):
         return x
 
 
-from .patch_embed import EmbeddingStem
+from .patch_embed_sn import EmbeddingStem
 
 class VisioniTransformer(nn.Module):
     def __init__(self, channels: int, shape: Tuple[int,int], patch_size: Tuple[int,int], dim: int, depth: int, heads: int, out_normalize: bool=True, linear_classifier: bool=False):
@@ -247,7 +248,7 @@ class VisioniTransformer(nn.Module):
 
         self.linear_classifier = linear_classifier
         if linear_classifier:
-            self.linear_classifier_layer = nn.Linear(dim, 1, False)
+            self.linear_classifier_layer = spectral_norm(nn.Linear(dim, 1, False))
     
     def forward(self, input):
         embeded_input = self.embedding_layer(input)
