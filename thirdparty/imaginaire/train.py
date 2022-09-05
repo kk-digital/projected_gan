@@ -82,7 +82,7 @@ def main():
         cfg.data.num_workers = args.num_workers
 
     # Create log directory for storing training results.
-    cfg.date_uid, cfg.logdir = init_logging(args.config, args.logdir)
+    cfg.date_uid, cfg.logdir = init_logging(args.config, args.logdir, cfg)
     make_logging_dir(cfg.logdir)
 
     # Initialize cudnn.

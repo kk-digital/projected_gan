@@ -18,7 +18,7 @@ def get_date_uid():
     return str(datetime.datetime.now().strftime("%Y_%m%d_%H%M_%S"))
 
 
-def init_logging(config_path, logdir):
+def init_logging(config_path, logdir, cfg):
     r"""Create log directory for storing checkpoints and output images.
 
     Args:
@@ -31,7 +31,7 @@ def init_logging(config_path, logdir):
     root_dir = 'logs'
     date_uid = get_date_uid()
     # example: logs/2019_0125_1047_58_spade_cocostuff
-    log_file = '_'.join([date_uid, os.path.splitext(config_file)[0]])
+    log_file = '_'.join([date_uid, os.path.splitext(config_file)[0], cfg.trainer.type.split('.')[-1], cfg.data.name])
     if logdir is None:
         logdir = os.path.join(root_dir, log_file)
     return date_uid, logdir
