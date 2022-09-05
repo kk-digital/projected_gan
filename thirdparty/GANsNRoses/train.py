@@ -20,6 +20,8 @@ import kornia.augmentation as K
 import kornia
 import lpips
 
+import GPUtil
+from tdlogger import TdLogger
 from model import Generator, Discriminator, LatDiscriminator
 from dataset import ImageFolder
 from distributed import (
@@ -33,7 +35,17 @@ from distributed import (
 mse_criterion = nn.MSELoss()
 
 
-def test(args, genA2B, genB2A, testA_loader, testB_loader, name, step):
+def report_gpuinfo(logger: TdLogger):
+    gpus = GPUtil.getGPUs()
+    stats = {}
+    for i, gpu in enumerate(gpus):
+            stats[f"Load/GPU{i}"] = gpu.load,
+            stats[f"MemLoad/GPU{i}"] = gpu.memoryUsed / gpu.memoryTotal,
+            stats[f"MemTotal/GPU{i}"] = gpu.memoryTotal
+    logger.send(stats, "GPUInfo")
+
+
+def test(args, genA2B, genB2A, testA_loader, testB_loader, name, step, logger: TdLogger):
     testA_loader = iter(testA_loader)
     testB_loader = iter(testB_loader)
     with torch.no_grad():
@@ -103,13 +115,17 @@ def test(args, genA2B, genB2A, testA_loader, testB_loader, name, step):
         A2B = torch.cat(A2B, 0)
         B2A = torch.cat(B2A, 0)
 
-        utils.save_image(A2B, f'{im_path}/{name}_A2B_{str(step).zfill(6)}.jpg', normalize=True, range=(-1, 1), nrow=16)
-        utils.save_image(B2A, f'{im_path}/{name}_B2A_{str(step).zfill(6)}.jpg', normalize=True, range=(-1, 1), nrow=16)
+        a2b_image = f'{im_path}/{name}_A2B_{str(step).zfill(6)}.jpg'
+        b2a_image = f'{im_path}/{name}_B2A_{str(step).zfill(6)}.jpg'
+        utils.save_image(A2B, a2b_image, normalize=True, range=(-1, 1), nrow=16)
+        utils.save_image(B2A, b2a_image, normalize=True, range=(-1, 1), nrow=16)
+        logger.sendBlobFile(a2b_image, os.path.basename(a2b_image), f'/validation_images/{logger.group_prefix}/{os.path.basename(a2b_image)}', 'validation_images')
+        logger.sendBlobFile(b2a_image, os.path.basename(b2a_image), f'/validation_images/{logger.group_prefix}/{os.path.basename(b2a_image)}', 'validation_images')
 
         genA2B.train(), genB2A.train()
 
 
-def train(args, trainA_loader, trainB_loader, testA_loader, testB_loader, G_A2B, G_B2A, D_A, D_B, G_optim, D_optim, device):
+def train(args, trainA_loader, trainB_loader, testA_loader, testB_loader, G_A2B, G_B2A, D_A, D_B, G_optim, D_optim, device, logger: TdLogger):
     G_A2B.train(), G_B2A.train(), D_A.train(), D_B.train()
     trainA_loader = sample_data(trainA_loader)
     trainB_loader = sample_data(trainB_loader)
@@ -271,17 +287,28 @@ def train(args, trainA_loader, trainB_loader, testA_loader, testB_loader, G_A2B,
         lpips_val = loss_reduced['lpips'].mean().item()
 
         if get_rank() == 0:
-            pbar.set_description(
-                (
-                    f'Dadv: {D_adv_loss_val:.2f}; lpips: {lpips_val:.2f} '
-                    f'Gadv: {G_adv_loss_val:.2f}; Gcycle: {G_cycle_loss_val:.2f}; GMS: {G_con_loss_val:.2f} {G_style_loss.item():.2f}'
+            if i % 50 == 0:
+                pbar.set_description(
+                    (
+                        f'Dadv: {D_adv_loss_val:.2f}; lpips: {lpips_val:.2f} '
+                        f'Gadv: {G_adv_loss_val:.2f}; Gcycle: {G_cycle_loss_val:.2f}; GMS: {G_con_loss_val:.2f} {G_style_loss.item():.2f}'
+                    )
                 )
-            )
+                logger.send({
+                    'Dadv': D_adv_loss_val,
+                    'lpips': lpips_val,
+                    'Gadv': G_adv_loss_val,
+                    'Gcycle': G_cycle_loss_val,
+                    'Gconsistency': G_con_loss_val,
+                    'Gstyle': G_style_loss.item()
+                    }, 'loss')
+                report_gpuinfo(logger)
+                logger.flush()
 
             if i % 1000 == 0:
                 with torch.no_grad():
-                    test(args, G_A2B, G_B2A, testA_loader, testB_loader, 'normal', i)
-                    test(args, G_A2B_ema, G_B2A_ema, testA_loader, testB_loader, 'ema', i)
+                    test(args, G_A2B, G_B2A, testA_loader, testB_loader, 'normal', i, logger=logger)
+                    test(args, G_A2B_ema, G_B2A_ema, testA_loader, testB_loader, 'ema', i, logger=logger)
 
             if (i+1) % 2000 == 0:
                 torch.save(
@@ -306,6 +333,9 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
 
+    parser.add_argument('--logger_endpoint', type=str , default="http://192.168.44.43:5445", help='logger endpoint')
+    parser.add_argument('--disable_logger',  action='store_true', help='logger endpoint')
+
     parser.add_argument('--iter', type=int, default=300000)
     parser.add_argument('--batch', type=int, default=4)
     parser.add_argument('--n_sample', type=int, default=64)
@@ -328,6 +358,10 @@ if __name__ == '__main__':
     parser.add_argument('--n_res', type=int, default=1)
 
     args = parser.parse_args()
+    datasetname = os.path.basename(args.d_path)
+    desc = f'GANsNRose-{datasetname}-bs{args.batch}'
+    logger = TdLogger(args.logger_endpoint, '', 1000, credential=('admin', '123456'), group_prefix=desc, disabled=args.disable_logger)
+    logger.send(vars(args), '-options', True)
 
     n_gpu = int(os.environ['WORLD_SIZE']) if 'WORLD_SIZE' in os.environ else 1
     args.distributed = False
@@ -447,12 +481,12 @@ if __name__ == '__main__':
     testB = ImageFolder(os.path.join(d_path, 'testB'), test_transform)
     
     trainA_loader = data.DataLoader(trainA, batch_size=args.batch, 
-            sampler=data_sampler(trainA, shuffle=True, distributed=args.distributed), drop_last=True, pin_memory=True, num_workers=5)
+            sampler=data_sampler(trainA, shuffle=True, distributed=args.distributed), drop_last=True, pin_memory=True, num_workers=1)
     trainB_loader = data.DataLoader(trainB, batch_size=args.batch, 
-            sampler=data_sampler(trainB, shuffle=True, distributed=args.distributed), drop_last=True, pin_memory=True, num_workers=5)
+            sampler=data_sampler(trainB, shuffle=True, distributed=args.distributed), drop_last=True, pin_memory=True, num_workers=1)
 
     testA_loader = data.DataLoader(testA, batch_size=1, shuffle=False)
     testB_loader = data.DataLoader(testB, batch_size=1, shuffle=False)
 
 
-    train(args, trainA_loader, trainB_loader, testA_loader, testB_loader, G_A2B, G_B2A, D_A, D_B, G_optim, D_optim, device)
+    train(args, trainA_loader, trainB_loader, testA_loader, testB_loader, G_A2B, G_B2A, D_A, D_B, G_optim, D_optim, device, logger=logger)
