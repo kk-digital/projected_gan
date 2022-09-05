@@ -208,7 +208,7 @@ class Transformer(nn.Module):
 
 from .patch_embed_sn import EmbeddingStem
 
-class VisioniTransformer(nn.Module):
+class VisionTransformer(nn.Module):
     def __init__(self, channels: int, shape: Tuple[int,int], patch_size: Tuple[int,int], dim: int, depth: int, heads: int, out_normalize: bool=True, linear_classifier: bool=False):
         super().__init__()
         self.out_resize = (shape[0]//patch_size[0], shape[1]//patch_size[1])
@@ -257,4 +257,4 @@ class VisioniTransformer(nn.Module):
             x = self.post_transformer(x)
         if self.linear_classifier:
             x = self.linear_classifier_layer(x)
-        return x.view(x.size(0), *self.out_resize, -1).permute(0, 3, 1, 2).contiguous()
+        return x.view(x.size(0), *self.out_resize, -1).permute(0, 3, 1, 2)
