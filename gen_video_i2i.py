@@ -169,6 +169,11 @@ def video_translation(
 
         with torch.no_grad():
             A2B_content, A2B_style = G_A2B.encode(frame)
+            if isinstance(A2B_content, list):
+                A2B_content = list(map(lambda c: c.repeat(8,1,1,1), A2B_content))
+            else:
+                A2B_content = A2B_content.repeat(8,1,1,1)
+
             if mode == 'blend':
                 in_latent = all_latents[frame_num]
             elif mode == 'normal':
@@ -184,9 +189,9 @@ def video_translation(
                     in_latent = all_latents + direction
                     eig_dir_idx += 1
                     
-                fake_A2B = G_A2B.decode(A2B_content.repeat(8,1,1,1), in_latent, use_mapping=False)
+                fake_A2B = G_A2B.decode(A2B_content, in_latent, use_mapping=False)
             else:
-                fake_A2B = G_A2B.decode(A2B_content.repeat(8,1,1,1), in_latent)
+                fake_A2B = G_A2B.decode(A2B_content, in_latent)
 
             fake_A2B = torch.cat([fake_A2B[:4], frame, fake_A2B[4:]], 0)
             fake_A2B = utils.make_grid(fake_A2B.cpu(), normalize=True, range=(-1, 1), nrow=3)
