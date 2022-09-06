@@ -57,7 +57,7 @@ class Loss:
 class ECUTStyle2Loss(Loss):
     def __init__(self, device, G, D, F, resolution: int,
                  nce_layers: list, feature_net: str, nce_idt: bool, num_patches: int,
-                 style_recon_nce: bool = False, feature_attn_layers: int=0, patch_max_shape: Tuple[int,int]=(256,256),
+                 style_recon_nce: bool = False, style_recon_force_idt: bool = False, feature_attn_layers: int=0, patch_max_shape: Tuple[int,int]=(256,256),
                  normalize_transformer_out: bool = True,
                  lambda_GAN: float=1.0, lambda_NCE: float=1.0, lambda_identity: float = 0,
                  lambda_style_consis: float=50.0, lambda_style_recon: float = 5,
@@ -83,6 +83,8 @@ class ECUTStyle2Loss(Loss):
         self.blur_fade_kimg = blur_fade_kimg
         self.criterionIdt = torch.nn.MSELoss()
         self.criterionStyleRecon = losses.ContrastiveNCELoss() if style_recon_nce else torch.nn.MSELoss()
+        self.style_recon_force_idt = style_recon_force_idt
+        self.style_recon_nce = style_recon_nce
         self.latent_dim = self.G.latent_dim
         self.aug = nn.Sequential(
             K.RandomAffine(degrees=(-20,20), scale=(0.8, 1.2), translate=(0.1, 0.1), shear=0.15),
@@ -251,6 +253,8 @@ class ECUTStyle2Loss(Loss):
                 if self.lambda_style_recon > 0:
                     recon_style = self.G.reverse_se.style_encode(fake_B)
                     loss_Gmain_style_recon = self.criterionStyleRecon(input_A_style, recon_style)
+                    if self.style_recon_nce and self.style_recon_force_idt:
+                        loss_Gmain_style_recon += self.criterionIdt(input_A_style, recon_style)
                     training_stats.report('Loss/G/StyleReconstruction', loss_Gmain_style_recon)
                     loss_Gmain = loss_Gmain + loss_Gmain_style_recon * self.lambda_style_recon
 
