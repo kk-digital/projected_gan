@@ -70,7 +70,11 @@ def generate_images(
         content, style = G.encode(img)
         out_images = []
         for deltas in latent_changes:
-            content, style = content.expand(len(deltas), -1, -1, -1), style.expand(len(deltas), -1)
+            style = style.expand(len(deltas), -1)
+            if isinstance(content, list):
+                content = list(map(lambda c: c.expand(len(deltas), -1, -1, -1), content))
+            else:
+                content = content.expand(len(deltas), -1, -1, -1)
             style = style + deltas
             out = G.decode(content, style + deltas)
             out_images.append(torch.cat([img, out], dim=0))
