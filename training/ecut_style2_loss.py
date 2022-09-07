@@ -58,7 +58,7 @@ class ECUTStyle2Loss(Loss):
     def __init__(self, device, G, D, F, resolution: int,
                  nce_layers: list, feature_net: str, nce_idt: bool, num_patches: int,
                  style_recon_nce: bool = False, style_recon_force_idt: bool = False, feature_attn_layers: int=0, patch_max_shape: Tuple[int,int]=(256,256),
-                 normalize_transformer_out: bool = True,
+                 same_style_encoder: bool = False, normalize_transformer_out: bool = True,
                  lambda_GAN: float=1.0, lambda_NCE: float=1.0, lambda_identity: float = 0,
                  lambda_style_consis: float=50.0, lambda_style_recon: float = 5,
                  blur_init_sigma=0, blur_fade_kimg=0, **kwargs):
@@ -83,6 +83,7 @@ class ECUTStyle2Loss(Loss):
         self.blur_fade_kimg = blur_fade_kimg
         self.criterionIdt = torch.nn.MSELoss()
         self.criterionStyleRecon = losses.ContrastiveNCELoss() if style_recon_nce else torch.nn.MSELoss()
+        self.same_style_encoder = same_style_encoder
         self.style_recon_force_idt = style_recon_force_idt
         self.style_recon_nce = style_recon_nce
         self.latent_dim = self.G.latent_dim
@@ -162,9 +163,10 @@ class ECUTStyle2Loss(Loss):
         self.F.create_mlp(feat)
         self.D.latent_dis = LatDiscriminator(self.latent_dim).to(self.device).requires_grad_(False)
         encoder = reduce(lambda a, b: a or b, map(lambda u: isinstance(self.G, u[0]) and u[1], valid_gen_encoder))
-        self.G.reverse_se = encoder(
-            latent_dim=self.G.latent_dim, ngf=self.G.ngf, nc=self.G.nc,
-            img_resolution=self.G.img_resolution, lite=self.G.lite).to(self.device).requires_grad_(False)
+        if not self.same_style_encoder:
+            self.G.reverse_se = encoder(
+                latent_dim=self.G.latent_dim, ngf=self.G.ngf, nc=self.G.nc,
+                img_resolution=self.G.img_resolution, lite=self.G.lite).to(self.device).requires_grad_(False)
 
     def calculate_NCE_loss(self, feat_k, feat_q):
         n_layers = len(self.nce_layers)
@@ -251,7 +253,8 @@ class ECUTStyle2Loss(Loss):
                     loss_Gmain = loss_Gmain + loss_Gmain_consis * self.lambda_style_consis
 
                 if self.lambda_style_recon > 0:
-                    recon_style = self.G.reverse_se.style_encode(fake_B)
+                    reverse_se = self.G.encoder if self.same_style_encoder else self.G.reverse_se
+                    recon_style = reverse_se.style_encode(fake_B)
                     loss_Gmain_style_recon = self.criterionStyleRecon(input_A_style, recon_style)
                     if self.style_recon_nce and self.style_recon_force_idt:
                         loss_Gmain_style_recon += self.criterionIdt(input_A_style, recon_style)
