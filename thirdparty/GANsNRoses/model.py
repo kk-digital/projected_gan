@@ -421,17 +421,19 @@ class ToRGB(nn.Module):
 class Generator(nn.Module):
     def __init__(
         self,
-        size,
-        num_down, 
-        latent_dim,
-        n_mlp,
-        n_res,
+        size=256,
+        num_down=3, 
+        latent_dim=8,
+        n_mlp=5,
+        n_res=1,
         channel_multiplier=1,
         blur_kernel=[1, 3, 3, 1],
         lr_mlp=0.01,
+        **kwargs
     ):
         super().__init__()
         self.size = size
+        self.latent_dim = latent_dim
 
         style_dim = 512
         
@@ -622,7 +624,7 @@ class ResBlock(nn.Module):
         return out
 
 class Discriminator(nn.Module):
-    def __init__(self, size, channel_multiplier=2, blur_kernel=[1, 3, 3, 1]):
+    def __init__(self, size=256, channel_multiplier=2, blur_kernel=[1, 3, 3, 1], **kwargs):
         super().__init__()
         self.size = size
         l_branch = self.make_net_(32)
@@ -698,6 +700,9 @@ class Encoder(nn.Module):
               ]
         self.style = nn.Sequential(*style)
 
+    def style_encode(self, input):
+        act = self.stem(input)
+        return self.style(act)
 
     def forward(self, input):
         act = self.stem(input)

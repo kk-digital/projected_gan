@@ -265,9 +265,12 @@ def training_loop(
 
     # Print network summary tables.
     if rank == 0:
-        fimg = torch.empty([batch_gpu, 3, training_set.resolution, training_set.resolution], device=device)
-        img = misc.print_module_summary(G, [fimg])
-        misc.print_module_summary(D, [img])
+        try:
+            fimg = torch.empty([batch_gpu, 3, training_set.resolution, training_set.resolution], device=device)
+            img = misc.print_module_summary(G, [fimg])
+            misc.print_module_summary(D, [img])
+        except:
+            pass
 
     # Resume from existing pickle.
     if (resume_pkl is not None) and (rank == 0):

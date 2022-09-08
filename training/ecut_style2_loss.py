@@ -22,7 +22,6 @@ from torch_utils import training_stats
 from torch_utils.ops import upfirdn2d
 from models import losses
 from models.patchnce import PatchNCELoss
-from models.gnr_networks import LatDiscriminator
 from models.fastae_networks import Encoder as Ev1, Generator as Gv1
 from models.fastae_v2_networks import Encoder as Ev2, Generator as Gv2
 from models.fastae_v3_networks import Encoder as Ev3, Generator as Gv3
@@ -34,6 +33,7 @@ from models.style_networks import Encoder as Ev4, Generator as Gv4
 from models.style_v2_networks import Encoder as Ev5, Generator as Gv5
 from models.style_v3_networks import Encoder as Ev7, Generator as Gv7
 from models.style_v4_networks import Encoder as Ev8, Generator as Gv8
+from thirdparty.GANsNRoses.model import Encoder as Ev_gnr, Generator as Gv_gnr, LatDiscriminator
 
 valid_gen_encoder = [
     (Gv1, Ev1),
@@ -47,6 +47,7 @@ valid_gen_encoder = [
     (Gv10, Ev10),
     (Gv11, Ev11),
     (Gv12, Ev12),
+    (Gv_gnr, Ev_gnr)
 ]
 
 class Loss:
@@ -164,9 +165,12 @@ class ECUTStyle2Loss(Loss):
         self.D.latent_dis = LatDiscriminator(self.latent_dim).to(self.device).requires_grad_(False)
         encoder = reduce(lambda a, b: a or b, map(lambda u: isinstance(self.G, u[0]) and u[1], valid_gen_encoder))
         if not self.same_style_encoder:
-            self.G.reverse_se = encoder(
-                latent_dim=self.G.latent_dim, ngf=self.G.ngf, nc=self.G.nc,
-                img_resolution=self.G.img_resolution, lite=self.G.lite).to(self.device).requires_grad_(False)
+            if encoder == Ev_gnr:
+                self.G.reverse_se = encoder(self.G.size, 8, 3, 1).to(self.device).requires_grad_(False)
+            else:
+                self.G.reverse_se = encoder(
+                    latent_dim=self.G.latent_dim, ngf=self.G.ngf, nc=self.G.nc,
+                    img_resolution=self.G.img_resolution, lite=self.G.lite).to(self.device).requires_grad_(False)
 
     def calculate_NCE_loss(self, feat_k, feat_q):
         n_layers = len(self.nce_layers)
