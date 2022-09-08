@@ -8,12 +8,12 @@
 
 """Generate images using pretrained network pickle."""
 
+import io
 import os
-from typing import List, Optional, Tuple, Union
+import pickle
 import click
 from tqdm import tqdm
 import dnnlib
-import numpy as np
 import PIL.Image
 import torch
 import legacy
@@ -30,8 +30,31 @@ def generate_images(
 ):
     print('Loading networks from "%s"...' % network_pkl)
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-    with dnnlib.util.open_url(network_pkl) as f:
-        G = legacy.load_network_pkl(f)['G_ema'].to(device) # type: ignore
+    if 'munit' in network_pkl:
+        with io.open(network_pkl, 'rb') as pf:
+            G = pickle.load(pf).requires_grad_(False).eval().to(device)
+            def new_forward(img):
+                out, _ = G.inference({'images_a': img, 'key': { 'images_a': { 'filename': '' }}}, random_style=True)
+                return out
+            G.forward = new_forward
+    elif 'unit' in network_pkl:
+        with io.open(network_pkl, 'rb') as pf:
+            G = pickle.load(pf).requires_grad_(False).eval().to(device)
+            def new_forward(img):
+                out, _ = G.inference({'images_a': img, 'key': { 'images_a': { 'filename': [''], 'sequence_name': [''] }}})
+                return out
+            G.forward = new_forward
+    elif 'GANsNRoses' in network_pkl or 'gansnroses' in network_pkl or 'gnr' in network_pkl:
+        with io.open(network_pkl, 'rb') as pf:
+            G = pickle.load(pf, fix_imports=True).requires_grad_(False).eval().to(device)
+            old_forward = G.forward
+            def new_forward(img):
+                out, _, _ = old_forward(img)
+                return out
+            G.forward = new_forward
+    else:
+        with dnnlib.util.open_url(network_pkl) as f:
+            G = legacy.load_network_pkl(f)['G_ema'].to(device) # type: ignore
 
     os.makedirs(outdir, exist_ok=True)
     eval_set_kwargs = dnnlib.EasyDict()
@@ -44,11 +67,11 @@ def generate_images(
     eval_set_kwargs.crop_size = 256
     eval_set_kwargs.flip = False
     eval_set_kwargs.serial_batches = True
-    eval_set_kwargs.max_dataset_size = 10000
+    eval_set_kwargs.max_dataset_size = 1000000
     eval_set = dnnlib.util.construct_class_by_name(**eval_set_kwargs)
 
     # Generate images.
-    for i, imgs in tqdm(enumerate(eval_set)):
+    for i, imgs in tqdm(enumerate(eval_set), total=len(eval_set)):
         if i > len(eval_set):
             break
 
