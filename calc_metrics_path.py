@@ -7,15 +7,15 @@ import click
 @click.option('--fake', help='fake images path', required=True)
 @click.option('--batch_size',   help='batch size', type=click.IntRange(min=1), default=50, show_default=True)
 @click.option('--device', help='torch device', default='cpu', show_default=True)
-@click.option('--tf_inception',   help='tensorflow inceptionv3 weights', is_flag=True)
+@click.option('--torch_inception',   help='tensorflow inceptionv3 weights', is_flag=True)
 def eval_metrics(
     real: str,
     fake: str,
     batch_size: int,
     device: str,
-    tf_inception: bool
+    torch_inception: bool
 ):
-    results = calculate_scores_given_paths([real, fake], batch_size, device, dims=2048, use_fid_inception=tf_inception, inf_version=True)
+    results = calculate_scores_given_paths([real, fake], batch_size, device, dims=2048, use_fid_inception=not torch_inception, inf_version=True)
     for vals in results:
         kid = vals['kid']
         print('[KID: %.5f (%.5f), FID: %.2f, FID_inf: %.2f, IS_inf: %.2f](%s)' % (kid[0], kid[1], vals['fid'], vals['fid_inf'], vals['is_inf'], vals['path']))
