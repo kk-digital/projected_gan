@@ -87,9 +87,9 @@ def save_image_grid(img, fname, drange, grid_size):
 
     assert C in [1, 3]
     if C == 1:
-        PIL.Image.fromarray(img[:, :, 0], 'L').save(fname)
+        PIL.Image.fromarray(img[:, :, 0], 'L').save(fname, quality=100, subsampling=0)
     if C == 3:
-        PIL.Image.fromarray(img, 'RGB').save(fname)
+        PIL.Image.fromarray(img, 'RGB').save(fname, quality=100, subsampling=0)
 
 #----------------------------------------------------------------------------
 

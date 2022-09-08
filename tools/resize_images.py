@@ -19,7 +19,7 @@ def resize_images(dir: str, target: Tuple[int,int], suffix: List[str]):
         img = Image.open(image).convert('RGB')
         target_path = os.path.join(target_dir, os.path.basename(image))
         img = img.resize((width, height))
-        img.save(target_path)
+        img.save(target_path, quality=100, subsampling=0)
 
 
 parser = argparse.ArgumentParser(description='Scale Images')

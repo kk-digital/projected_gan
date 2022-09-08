@@ -102,15 +102,15 @@ def save_image_grid(imgA, imgB, fname, drange, grid_size):
 
     assert C in [1, 3]
     if C == 1:
-        PIL.Image.fromarray(img[:, :, 0], 'L').save(fname, format='png')
+        PIL.Image.fromarray(img[:, :, 0], 'L').save(fname, quality=100, subsampling=0)
     if C == 3:
-        PIL.Image.fromarray(img, 'RGB').save(fname, format='png')
+        PIL.Image.fromarray(img, 'RGB').save(fname, quality=100, subsampling=0)
 
 #----------------------------------------------------------------------------
 
 def save_image(img: torch.Tensor, path: str):
     img = (img.permute(1, 2, 0) * 127.5 + 128).clamp(0, 255).to(torch.uint8)
-    PIL.Image.fromarray(img.cpu().numpy(), 'RGB').save(path)
+    PIL.Image.fromarray(img.cpu().numpy(), 'RGB').save(path, quality=100, subsampling=0)
 
 def eval_metrics(generator, eval_set, cur_nimg: int, run_dir: str, device, max_test: int=1000):
     result_dir = os.path.join(run_dir, 'results', f'{cur_nimg//1000:06d}')

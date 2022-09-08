@@ -9,7 +9,7 @@ import PIL.Image
 
 def save_image(img: torch.Tensor, path: str):
     img = (img.permute(1, 2, 0) * 127.5 + 128).clamp(0, 255).to(torch.uint8)
-    PIL.Image.fromarray(img.cpu().numpy(), 'RGB').save(path)
+    PIL.Image.fromarray(img.cpu().numpy(), 'RGB').save(path, quality=100, subsampling=0)
 
 def cam(x, size = 256):
     x = x - np.min(x)

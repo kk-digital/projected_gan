@@ -65,7 +65,7 @@ def generate_images(
         out_img2 = G.decode(content, style_ex)
         out = image_grid([img, out_img, out_img2], 2)
         out = (out.permute(1, 2, 0) * 127.5 + 128).clamp(0, 255).to(torch.uint8)
-        PIL.Image.fromarray(out.cpu().numpy(), 'RGB').save(f'{outdir}/{os.path.basename(img_path)}')
+        PIL.Image.fromarray(out.cpu().numpy(), 'RGB').save(f'{outdir}/{os.path.basename(img_path)}', quality=100, subsampling=0)
 
 
 #----------------------------------------------------------------------------
