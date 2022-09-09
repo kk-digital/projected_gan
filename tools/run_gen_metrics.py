@@ -12,15 +12,25 @@ def run_task(model_path: str, dataset_path: str, outdir: str) -> bool:
     if os.path.exists(metrics_file):
         return True
 
+    old_pythonpath = ''
+    if 'PYTHONPATH' in os.environ:
+        old_pythonpath = ';' + os.environ['PYTHONPATH']
+
+    env = {**os.environ}
+    env["PYTHONPATH"] =  f"{os.path.join(os.path.curdir, 'thirdparty/GANsNRoses')};{os.path.join(os.path.curdir, 'thirdparty/imaginaire')}{old_pythonpath}"
+
     args = [
                 sys.executable, 'gen_images_i2i.py', 
                 f"--network={model_path}",
                 f"--dataroot={dataset_path}",
                 f"--outdir={outdir}",
             ]
-    gen_image_proc = Popen(args, stdout=sys.stdout, stderr=sys.stderr, text=True)
+    gen_image_proc = Popen(args, env=env, stdout=sys.stdout, stderr=sys.stderr, text=True)
     gen_image_proc.wait()
     if gen_image_proc.returncode != 0:
+        os.makedirs(outdir, exist_ok=True)
+        with io.open(metrics_file, 'w') as f:
+            f.write('')
         return False
 
     metrics_args = [
