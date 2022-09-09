@@ -44,7 +44,7 @@ def generate_images(
                 out, _ = G.inference({'images_a': img, 'key': { 'images_a': { 'filename': [''], 'sequence_name': [''] }}})
                 return out
             G.forward = new_forward
-    elif 'GANsNRoses' in network_pkl or 'gansnroses' in network_pkl or 'gnr' in network_pkl:
+    elif 'GANsNRoses' in network_pkl or 'gansnroses' in network_pkl:
         with io.open(network_pkl, 'rb') as pf:
             G = pickle.load(pf, fix_imports=True).requires_grad_(False).eval().to(device)
             old_forward = G.forward
