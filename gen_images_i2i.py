@@ -80,7 +80,7 @@ def generate_images(
 
         out_img = G(img)
         out_img = (out_img.permute(0, 2, 3, 1) * 127.5 + 128).clamp(0, 255).to(torch.uint8)
-        PIL.Image.fromarray(out_img[0].cpu().numpy(), 'RGB').save(f'{outdir}/{os.path.basename(img_path)}', quality=100, subsampling=0)
+        PIL.Image.fromarray(out_img[0].cpu().numpy(), 'RGB').save(f'{outdir}/{i:05}-{os.path.basename(img_path)}', quality=100, subsampling=0)
 
 
 #----------------------------------------------------------------------------
