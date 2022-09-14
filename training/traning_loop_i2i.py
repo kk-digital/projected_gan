@@ -545,7 +545,7 @@ def training_loop(
             kid_val = best_kid + 1
             if rank == 0:
                 print('Evaluating metrics...')
-            results = eval_metrics(lambda img: G_ema(img), eval_set=eval_set, cur_nimg=cur_nimg, run_dir=run_dir, device=device)
+            results = eval_metrics(lambda img: G_ema_gen(img), eval_set=eval_set, cur_nimg=cur_nimg, run_dir=run_dir, device=device)
             kid, fid_val = results[0]['kid'], results[0]['fid']
             kid_val, _ = kid
             if rank == 0:
