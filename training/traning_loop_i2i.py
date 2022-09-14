@@ -102,9 +102,9 @@ def save_image_grid(imgA, imgB, fname, drange, grid_size):
 
     assert C in [1, 3]
     if C == 1:
-        PIL.Image.fromarray(img[:, :, 0], 'L').save(fname, quality=100, subsampling=0)
+        PIL.Image.fromarray(img[:, :, 0], 'L').save(fname, format='png', quality=100, subsampling=0)
     if C == 3:
-        PIL.Image.fromarray(img, 'RGB').save(fname, quality=100, subsampling=0)
+        PIL.Image.fromarray(img, 'RGB').save(fname, format='png', quality=100, subsampling=0)
 
 #----------------------------------------------------------------------------
 
@@ -270,7 +270,7 @@ def training_loop(
         print('Setting up training phases...')
 
     # Print network summary tables.
-    if rank == 0:
+    if rank == 0 and False:
         try:
             fimg = torch.empty([batch_gpu, 3, training_set.resolution, training_set.resolution], device=device)
             img = misc.print_module_summary(G, [fimg])

@@ -195,6 +195,11 @@ class ECUTStyle2Loss(Loss):
                 img = upfirdn2d.filter2d(img, f / f.sum())
 
         logits = self.D(img)
+        if isinstance(logits, list):
+            l = []
+            for lg in logits:
+                l.append(lg.mean())
+            logits = torch.stack(l, dim=0)
         return logits
 
     def accumulate_gradients(self, phase, real_A, real_B, gain, cur_nimg):
