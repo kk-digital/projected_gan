@@ -246,6 +246,12 @@ def training_loop(
     G_ema = copy.deepcopy(G).eval()
     F_ema = copy.deepcopy(F).eval()
 
+    def G_ema_gen(img):
+        out = G_ema(img)
+        if isinstance(out, tuple):
+            out = out[0]
+        return out
+
     # Check for existing checkpoint
     ckpt_pkl = None
     if restart_every > 0 and os.path.isfile(misc.get_ckpt_path(run_dir)):
@@ -314,7 +320,7 @@ def training_loop(
             save_image_grid(imagesA, imagesB, os.path.join(run_dir, 'reals.png'), drange=[-1,1], grid_size=grid_size)
 
             images_A = torch.from_numpy(imagesA).to(device).split(batch_gpu)
-            images = torch.cat([G_ema(img).cpu() for img in images_A]).numpy()
+            images = torch.cat([G_ema_gen(img).cpu() for img in images_A]).numpy()
 
             save_image_grid(imagesA, images, os.path.join(run_dir, 'fakes_init.png'), drange=[-1,1], grid_size=grid_size)
             del images_A
@@ -327,7 +333,7 @@ def training_loop(
         imgs_A_idx = imgs_A_idx[:5]
         imgs_A = imagesA[imgs_A_idx]
         images_A = torch.from_numpy(imgs_A).to(device).split(batch_gpu)
-        images = torch.cat([G_ema(img).cpu() for img in images_A]).numpy()
+        images = torch.cat([G_ema_gen(img).cpu() for img in images_A]).numpy()
         buf = io.BytesIO()
         save_image_grid(imgs_A, images, buf, drange=[-1,1], grid_size=(5,1))
         filename = f'tick_{tick}.png'
@@ -489,7 +495,7 @@ def training_loop(
         # Save image snapshot.
         if sample_image_grid and (rank == 0) and (image_snapshot_ticks is not None) and (done or cur_tick % image_snapshot_ticks == 0):
             images_A = torch.from_numpy(imagesA).to(device).split(batch_gpu)
-            images = torch.cat([G_ema(img).cpu() for img in images_A]).numpy()
+            images = torch.cat([G_ema_gen(img).cpu() for img in images_A]).numpy()
             img_path = os.path.join(run_dir, f'fakes{cur_nimg//1000:06d}.png')
             buf = io.BytesIO()
             save_image_grid(imagesA, images, buf, drange=[-1,1], grid_size=grid_size)
