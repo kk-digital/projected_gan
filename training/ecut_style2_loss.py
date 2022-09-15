@@ -220,8 +220,11 @@ class ECUTStyle2Loss(Loss):
                 aug_A = self.aug(real_A)
                 aug_B = self.aug(real_B)
                 A = self.aug(real_A[[np.random.randint(batch_size)]].expand_as(real_A))
+                B = self.aug(real_B[[np.random.randint(batch_size)]].expand_as(real_B))
+                reverse_se = self.G.encoder if self.same_style_encoder else self.G.reverse_se
 
                 A_content, A_style = self.G.encode(A)
+                B_style = reverse_se.style_encode(B)
                 aug_A_style = self.G.style_encode(aug_A)
                 rand_A_style = torch.randn([batch_size, self.latent_dim]).to(device).requires_grad_()
 
@@ -257,12 +260,15 @@ class ECUTStyle2Loss(Loss):
                     loss_Gmain = loss_Gmain + loss_Gmain_NCE * self.lambda_NCE
                 
                 if self.lambda_style_consis > 0:
-                    loss_Gmain_consis = A_style.var(0, unbiased=False).sum()
-                    training_stats.report('Loss/G/StyleConsistency', loss_Gmain_consis)
-                    loss_Gmain = loss_Gmain + loss_Gmain_consis * self.lambda_style_consis
+                    loss_Gmain_consis_A = A_style.var(0, unbiased=False).sum()
+                    training_stats.report('Loss/G/StyleConsistency_A', loss_Gmain_consis_A)
+
+                    loss_Gmain_consis_B = B_style.var(0, unbiased=False).sum()
+                    training_stats.report('Loss/G/StyleConsistency_B', loss_Gmain_consis_B)
+
+                    loss_Gmain = loss_Gmain + (loss_Gmain_consis_A + loss_Gmain_consis_B) * self.lambda_style_consis
 
                 if self.lambda_style_recon > 0:
-                    reverse_se = self.G.encoder if self.same_style_encoder else self.G.reverse_se
                     recon_style = reverse_se.style_encode(fake_B)
                     loss_Gmain_style_recon = self.criterionStyleRecon(input_A_style, recon_style)
                     if self.style_recon_nce and self.style_recon_force_idt:
