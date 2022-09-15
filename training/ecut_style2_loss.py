@@ -14,7 +14,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import dnnlib
-from torch import nn
+from torch import nn, autograd
 import kornia.augmentation as K
 import kornia
 from models.transformer import VisioniTransformer
@@ -55,12 +55,21 @@ class Loss:
         raise NotImplementedError()
 
 
+def d_r1_loss(real_pred, real_img):
+    grad_real, = autograd.grad(
+        outputs=real_pred.mean(), inputs=real_img, create_graph=True, only_inputs=True
+    )
+    grad_real = grad_real.pow(2)
+    return grad_real.mean() * (grad_real.numel() / real_img.size(0))
+
+
 class ECUTStyle2Loss(Loss):
     def __init__(self, device, G, D, F, resolution: int,
                  nce_layers: list, feature_net: str, nce_idt: bool, num_patches: int,
                  style_recon_nce: bool = False, style_recon_force_idt: bool = False, feature_attn_layers: int=0, patch_max_shape: Tuple[int,int]=(256,256),
                  same_style_encoder: bool = False, normalize_transformer_out: bool = True,
                  lambda_GAN: float=1.0, lambda_NCE: float=1.0, lambda_identity: float = 0,
+                 lambda_r1: float = 0, d_reg_every: int = 16,
                  lambda_style_consis: float=50.0, lambda_style_recon: float = 5,
                  blur_init_sigma=0, blur_fade_kimg=0, **kwargs):
         super().__init__()
@@ -80,6 +89,8 @@ class ECUTStyle2Loss(Loss):
         self.lambda_identity = lambda_identity
         self.lambda_style_consis = lambda_style_consis
         self.lambda_style_recon = lambda_style_recon
+        self.lambda_r1 = lambda_r1
+        self.d_reg_every = d_reg_every
         self.blur_init_sigma = blur_init_sigma
         self.blur_fade_kimg = blur_fade_kimg
         self.criterionIdt = torch.nn.MSELoss()
@@ -212,6 +223,7 @@ class ECUTStyle2Loss(Loss):
 
         # blurring schedule
         blur_sigma = max(1 - cur_nimg / (self.blur_fade_kimg * 1e3), 0) * self.blur_init_sigma if self.blur_fade_kimg > 1 else 0
+        n_iter = cur_nimg // real_A.size(0)
 
         if do_Gmain:
 
@@ -226,7 +238,7 @@ class ECUTStyle2Loss(Loss):
                 A_content, A_style = self.G.encode(A)
                 B_style = reverse_se.style_encode(B)
                 aug_A_style = self.G.style_encode(aug_A)
-                rand_A_style = torch.randn([batch_size, self.latent_dim]).to(device).requires_grad_()
+                rand_A_style = torch.randn([batch_size, self.latent_dim]).to(device)
 
                 idx = torch.randperm(2 * batch_size)
                 input_A_style = torch.cat([aug_A_style, rand_A_style], 0)[idx][:batch_size]
@@ -303,6 +315,10 @@ class ECUTStyle2Loss(Loss):
                 loss_Dgen.backward()
                 loss_Dgen_style.backward()
 
+            if n_iter % self.d_reg_every == 0 and self.lambda_r1 > 0:
+                self.aug_B.requires_grad = True
+                self.rand_A_style.requires_grad = True
+
             # Dmain: Maximize logits for real images.
             with torch.autograd.profiler.record_function('Dreal_forward'):
                 real_logits = self.run_D(self.aug_B, blur_sigma=blur_sigma)
@@ -316,6 +332,14 @@ class ECUTStyle2Loss(Loss):
                 training_stats.report('Loss/signs/real', real_logits.sign())
                 training_stats.report('Loss/D/loss', loss_Dgen + loss_Dreal)
                 training_stats.report('Loss/DStyle/loss', loss_Dgen_style + loss_Dreal_style)
+            
+            if n_iter % self.d_reg_every == 0 and self.lambda_r1 > 0:
+                r1_A_loss = d_r1_loss(real_logits, self.aug_B)
+                r1_A_s_loss = d_r1_loss(style_real_logits, self.rand_A_style)
+                training_stats.report('Loss/D/r1_Aimg', r1_A_loss)
+                training_stats.report('Loss/D/r1_Astyle', r1_A_s_loss)
+                loss_Dreal += r1_A_loss * self.lambda_r1 * self.d_reg_every
+                loss_Dreal_style += r1_A_s_loss * self.lambda_r1 * self.d_reg_every
 
             with torch.autograd.profiler.record_function('Dreal_backward'):
                 loss_Dreal.backward()

@@ -190,6 +190,9 @@ def parse_comma_separated_list(s):
 @click.option('--lambda_identity',    type=float,                   default=0.0, show_default=True)
 @click.option('--lambda_cosineSim',   type=float,                   default=1.0, show_default=True)
 @click.option('--lambda_classify',    type=float,                   default=1.0, show_default=True)
+@click.option('--lambda_r1',          type=float,                   default=0.0, show_default=True)
+
+@click.option('--d_reg_every', help='reg frequency',                metavar='INT',   type=click.IntRange(min=1), default=16)
 
 # dataset
 @click.option('--dataroot',         help='Training data',             metavar='[DIR]', type=str,                   required=True)
@@ -364,6 +367,8 @@ def main(**kwargs):
     c.loss_kwargs.lambda_identity = opts.lambda_identity
     c.loss_kwargs.lambda_cosineSim = opts.lambda_cosinesim
     c.loss_kwargs.lambda_classify = opts.lambda_classify
+    c.loss_kwargs.lambda_r1 = opts.lambda_r1
+    c.loss_kwargs.d_reg_every = opts.d_reg_every
     c.loss_kwargs.style_extractor = opts.style_extractor
     c.loss_kwargs.arc_path = opts.arc_path
     c.loss_kwargs.attn_net = opts.attn_net
