@@ -29,6 +29,7 @@ import torch.nn.functional as F
 import dnnlib
 import pickle
 import GPUtil
+from torch.optim import lr_scheduler
 from torch_utils import misc
 from torch_utils import training_stats
 from torch_utils.ops import conv2d_gradfix
@@ -162,6 +163,18 @@ def set_requires_grad(module: Union[List[torch.nn.Module], torch.nn.Module], req
                     mod_c.requires_grad_(False)
 
 
+def get_schedulers(total, current, optimizers):
+    def lambda_rule(tick):
+        lr_l = 1.0 - max(0, tick + current - (total // 2)) / float(total // 2 + 1)
+        return lr_l
+    schedulers = list(map(lambda optimizer: lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda_rule), optimizers))
+    return schedulers
+
+def schedulers_step(schedulers):
+    for sched in schedulers:
+        sched.step()
+
+
 def training_loop(
     run_dir                 = '.',      # Output directory.
     training_set_kwargs     = {},       # Options for training set.
@@ -197,6 +210,7 @@ def training_loop(
     desc: str = '',
     use_ema_model: bool = False,
     logger: TdLogger = None,
+    linear_lr_decay: bool = False,
     extra_info = {}
 ):
     # Initialize.
@@ -375,6 +389,13 @@ def training_loop(
         progress_fn(cur_nimg // 1000, total_kimg)
     if hasattr(loss, 'pl_mean'):
         loss.pl_mean.copy_(__PL_MEAN__)
+
+    if linear_lr_decay:
+        schedulers = get_schedulers(total_kimg // 4, cur_tick, [opt_G, opt_D])
+        schedulers_step(schedulers)
+    else:
+        schedulers = []
+
     while True:
 
         with torch.autograd.profiler.record_function('data_fetch'):
@@ -617,6 +638,7 @@ def training_loop(
 
         # Update state.
         cur_tick += 1
+        schedulers_step(schedulers)
         tick_start_nimg = cur_nimg
         tick_start_time = time.time()
         maintenance_time = tick_start_time - tick_end_time

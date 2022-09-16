@@ -192,6 +192,7 @@ def parse_comma_separated_list(s):
 @click.option('--lambda_classify',    type=float,                   default=1.0, show_default=True)
 @click.option('--lambda_r1',          type=float,                   default=0.0, show_default=True)
 
+@click.option('--linear_lr_decay', help='learning rate linear decay', is_flag=True)
 @click.option('--d_reg_every', help='reg frequency',                metavar='INT',   type=click.IntRange(min=1), default=16)
 
 # dataset
@@ -273,6 +274,7 @@ def main(**kwargs):
     c.image_snapshot_ticks = c.network_snapshot_ticks = opts.snap
     c.random_seed = opts.seed
     c.data_loader_kwargs.num_workers = opts.workers
+    c.linear_lr_decay = opts.linear_lr_decay
 
     # Sanity checks.
     if c.batch_size % c.num_gpus != 0:
