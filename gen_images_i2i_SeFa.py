@@ -25,12 +25,16 @@ from visual_utils import image_grid
 @click.option('--outdir', help='Where to save the output images', type=str, required=True, metavar='DIR')
 @click.option('--alpha', help='alpha base for latent manipulation', type=float, default=0.2, show_default=True)
 @click.option('--num_images', help='number of generated images', type=click.IntRange(min=1, max=100), default=10, show_default=True)
+@click.option('--fixed_style', help='fixed style for all images', is_flag=True)
+@click.option('--full_quality', help='save image without loss data', is_flag=True)
 def generate_images(
     network_pkl: str,
     dataroot: str,
     outdir: str,
     alpha: float,
-    num_images: int
+    num_images: int,
+    fixed_style: bool,
+    full_quality: bool
 ):
     print('Loading networks from "%s"...' % network_pkl)
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
@@ -62,6 +66,9 @@ def generate_images(
         l, h = -num_images//2, num_images//2
         eig_changes.append(torch.stack([ev * alpha * j for j in range(l, h)], dim=0))
 
+    if fixed_style:
+        the_style = torch.randn([1, G.latent_dim]).to(device)
+
     # Generate images.
     for i, imgs in tqdm(enumerate(dataloader)):
         if i > len(eval_set):
@@ -71,6 +78,8 @@ def generate_images(
         img_path = imgs['A_paths'][0]
 
         content, style = G.encode(img)
+        if fixed_style:
+            style = the_style
         out_images = []
         for deltas in eig_changes:
             style = style.expand(len(deltas), -1)
@@ -84,7 +93,11 @@ def generate_images(
 
         out = image_grid(out_images, len(eig_changes[0]) + 1)
         out = (out.permute(1, 2, 0) * 127.5 + 128).clamp(0, 255).to(torch.uint8)
-        PIL.Image.fromarray(out.cpu().numpy(), 'RGB').save(f'{outdir}/{os.path.basename(img_path)}', quality=100, subsampling=0)
+        extra_args = {}
+        if full_quality:
+            extra_args['quality'] = 100
+            extra_args['subsampling'] = 0
+        PIL.Image.fromarray(out.cpu().numpy(), 'RGB').save(f'{outdir}/{os.path.basename(img_path)}', **extra_args)
 
 
 #----------------------------------------------------------------------------
