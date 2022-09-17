@@ -67,7 +67,7 @@ class ECUTStyle2Loss(Loss):
     def __init__(self, device, G, D, F, resolution: int,
                  nce_layers: list, feature_net: str, nce_idt: bool, num_patches: int,
                  style_recon_nce: bool = False, style_recon_force_idt: bool = False, feature_attn_layers: int=0, patch_max_shape: Tuple[int,int]=(256,256),
-                 same_style_encoder: bool = False, normalize_transformer_out: bool = True,
+                 same_style_encoder: bool = False, normalize_transformer_out: bool = True, sim_pnorm: float = 0,
                  lambda_GAN: float=1.0, lambda_NCE: float=1.0, lambda_identity: float = 0,
                  lambda_r1: float = 0, d_reg_every: int = 16,
                  lambda_style_consis: float=50.0, lambda_style_recon: float = 5,
@@ -133,7 +133,7 @@ class ECUTStyle2Loss(Loss):
 
         self.nce_layers = nce_layers
         for _ in nce_layers:
-            self.criterionNCE.append(PatchNCELoss(patchnce_opt).to(self.device))
+            self.criterionNCE.append(PatchNCELoss(patchnce_opt, pnormSim=sim_pnorm).to(self.device))
 
         self.setup_F()
         self.F.train().requires_grad_(False).to(self.device)
