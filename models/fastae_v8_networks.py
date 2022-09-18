@@ -5,6 +5,7 @@ import torch
 from torch import nn
 from torch.nn.parameter import Parameter
 from torch.nn.utils import spectral_norm
+from models.gaussian_vae import gaussian_reparameterization
 from op import fused_leaky_relu
 
 
@@ -407,6 +408,7 @@ class Generator(nn.Module):
         self.nc = nc
         self.img_resolution = img_resolution
         self.lite = lite
+        self.variational_style_encoder = variational_style_encoder
         self.encoder = Encoder(latent_dim=latent_dim, ngf=ngf, nc=nc, img_resolution=img_resolution, lite=lite, normalize_style=normalize_style, variational_style_encoder=variational_style_encoder)
         self.decoder = Decoder(latent_dim=latent_dim, ngf=ngf, nc=nc, img_resolution=img_resolution, lite=lite)
     
@@ -427,4 +429,10 @@ class Generator(nn.Module):
             content = self.content_encode(img)
         else:
             content, z = self.encode(img)
+
+        if self.variational_style_encoder:
+            z_mu = z[:,:z.size(1)//2]
+            z_logvar = z[:,z.size(1)//2:]
+            z = gaussian_reparameterization(z_mu, z_logvar)
+
         return self.decode(content, z)
