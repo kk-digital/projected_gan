@@ -13,6 +13,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import dnnlib
+from torch import autograd
 from models.transformer import VisioniTransformer
 from torch_utils import training_stats
 from torch_utils.ops import upfirdn2d
@@ -26,12 +27,21 @@ class Loss:
         raise NotImplementedError()
 
 
+def d_r1_loss(real_pred, real_img):
+    grad_real, = autograd.grad(
+        outputs=real_pred.mean(), inputs=real_img, create_graph=True, only_inputs=True
+    )
+    grad_real = grad_real.pow(2)
+    return grad_real.mean() * (grad_real.numel() / real_img.size(0))
+
+
 class ECUTLoss(Loss):
     def __init__(self, device, G, D, F, G_ema, resolution: int,
                  nce_layers: list, feature_net: str, nce_idt: bool, num_patches: int,
                  adaptive_loss: bool, sim_pnorm: float = 0,
                  feature_attn_layers: int=0, patch_max_shape: Tuple[int,int]=(256,256),
                  normalize_transformer_out: bool = True,
+                 lambda_r1: float = 0, d_reg_every: int = 16,
                  lambda_GAN: float=1.0, lambda_NCE: float=1.0, lambda_identity: float = 0,
                  blur_init_sigma=0, blur_fade_kimg=0, **kwargs):
         super().__init__()
@@ -49,6 +59,8 @@ class ECUTLoss(Loss):
         self.lambda_GAN = lambda_GAN
         self.lambda_NCE = lambda_NCE
         self.lambda_identity = lambda_identity
+        self.lambda_r1 = lambda_r1
+        self.d_reg_every = d_reg_every
         self.blur_init_sigma = blur_init_sigma
         self.blur_fade_kimg = blur_fade_kimg
         self.adaptive_loss = adaptive_loss
@@ -161,6 +173,7 @@ class ECUTLoss(Loss):
 
         # blurring schedule
         blur_sigma = max(1 - cur_nimg / (self.blur_fade_kimg * 1e3), 0) * self.blur_init_sigma if self.blur_fade_kimg > 1 else 0
+        n_iter = cur_nimg // real_A.size(0)
 
         if do_Gmain:
 
@@ -214,6 +227,8 @@ class ECUTLoss(Loss):
             # Dmain: Maximize logits for real images.
             with torch.autograd.profiler.record_function('Dreal_forward'):
                 real_img_tmp = real_B.detach().requires_grad_(False)
+                if n_iter % self.d_reg_every == 0 and self.lambda_r1 > 0:
+                    real_img_tmp.requires_grad = True
                 real_logits = self.run_D(real_img_tmp, blur_sigma=blur_sigma)
                 loss_Dreal = (F.relu(torch.ones_like(real_logits) - real_logits)).mean()
 
@@ -221,6 +236,11 @@ class ECUTLoss(Loss):
                 training_stats.report('Loss/scores/real', real_logits)
                 training_stats.report('Loss/signs/real', real_logits.sign())
                 training_stats.report('Loss/D/loss', loss_Dgen + loss_Dreal)
+
+                if n_iter % self.d_reg_every == 0 and self.lambda_r1 > 0:
+                    r1_A_loss = d_r1_loss(real_logits, real_img_tmp)
+                    training_stats.report('Loss/D/r1_Aimg', r1_A_loss)
+                    loss_Dreal += r1_A_loss * self.lambda_r1 * self.d_reg_every
 
             with torch.autograd.profiler.record_function('Dreal_backward'):
                 loss_Dreal.backward()
