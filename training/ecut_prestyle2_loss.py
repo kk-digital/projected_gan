@@ -14,7 +14,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import dnnlib
-from torch import nn
+from torch import nn, autograd
 from torch.nn.utils import spectral_norm
 from models.gaussian_vae import gaussian_reparameterization, univariate_gaussian_KLD
 from models.gnr_networks import LatDiscriminator
@@ -26,6 +26,7 @@ from models.patchnce import PatchNCELoss
 from models.gnr_networks import Encoder as Es, Generator as Gs
 from models.fastae_v3_networks import Encoder as Ev3, Generator as Gv3
 from models.fastae_v4_networks import Encoder as Ev9, Generator as Gv9
+from models.fastae_v8_networks import Encoder as Ev10, Generator as Gv10
 from models.style_networks import Encoder as Ev4, Generator as Gv4
 from models.style_v2_networks import Encoder as Ev5, Generator as Gv5
 from models.style_v3_networks import Encoder as Ev7, Generator as Gv7
@@ -39,11 +40,20 @@ valid_gen_encoder = [
     (Gv7, Ev7),
     (Gv8, Ev8),
     (Gv9, Ev9),
+    (Gv10, Ev10),
 ]
 
 class Loss:
     def accumulate_gradients(self, phase, real_A, real_B, gain, cur_nimg): # to be overridden by subclass
         raise NotImplementedError()
+
+
+def d_r1_loss(real_pred, real_img):
+    grad_real, = autograd.grad(
+        outputs=real_pred.mean(), inputs=real_img, create_graph=True, only_inputs=True
+    )
+    grad_real = grad_real.pow(2)
+    return grad_real.mean() * (grad_real.numel() / real_img.size(0))
 
 
 class ECUTPreStyle2Loss(Loss):
@@ -53,6 +63,7 @@ class ECUTPreStyle2Loss(Loss):
                  lambda_style_KLD: float=0, shuffle_style: bool=False,
                  feature_attn_layers: int=0, patch_max_shape: Tuple[int,int]=(256,256),
                  normalize_transformer_out: bool = True, same_style_encoder: bool = True,
+                 lambda_r1: float = 0, d_reg_every: int = 16,
                  lambda_GAN: float=1.0, lambda_NCE: float=1.0, lambda_identity: float = 0,
                  lambda_style_consis: float=50.0, lambda_style_recon: float = 5,
                  blur_init_sigma=0, blur_fade_kimg=0, **kwargs):
@@ -74,6 +85,8 @@ class ECUTPreStyle2Loss(Loss):
         self.style_recon_nce_mlp_layers = style_recon_nce_mlp_layers
         self.randn_style = randn_style
         self.shuffle_style = shuffle_style
+        self.lambda_r1 = lambda_r1
+        self.d_reg_every = d_reg_every
         self.lambda_style_KLD = lambda_style_KLD
         self.lambda_GAN = lambda_GAN
         self.lambda_NCE = lambda_NCE
@@ -210,6 +223,7 @@ class ECUTPreStyle2Loss(Loss):
 
         # blurring schedule
         blur_sigma = max(1 - cur_nimg / (self.blur_fade_kimg * 1e3), 0) * self.blur_init_sigma if self.blur_fade_kimg > 1 else 0
+        n_iter = cur_nimg // real_A.size(0)
 
         if do_Gmain:
 
@@ -321,8 +335,16 @@ class ECUTPreStyle2Loss(Loss):
 
             # Dmain: Maximize logits for real images.
             with torch.autograd.profiler.record_function('Dreal_forward'):
+                real_B = real_B.detach()
+                if n_iter % self.d_reg_every == 0 and self.lambda_r1 > 0:
+                    real_B.requires_grad = True
                 real_logits = self.run_D(real_B, blur_sigma=blur_sigma)
                 loss_Dreal = (F.relu(torch.ones_like(real_logits) - real_logits)).mean()
+
+                if n_iter % self.d_reg_every == 0 and self.lambda_r1 > 0:
+                    r1_A_loss = d_r1_loss(real_logits, real_B)
+                    training_stats.report('Loss/D/r1_Aimg', r1_A_loss)
+                    loss_Dreal += r1_A_loss * self.lambda_r1 * self.d_reg_every
 
                 if self.randn_style:
                     rand_style = torch.randn([batch_size, self.latent_dim]).to(device).requires_grad_()
