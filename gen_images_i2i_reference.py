@@ -16,6 +16,7 @@ import PIL.Image
 import torch
 import legacy
 from visual_utils import image_grid
+from models.gaussian_vae import gaussian_reparameterization
 
 
 @click.command()
@@ -62,6 +63,15 @@ def generate_images(
 
         content, style_old = G.encode(img_A)
         _, style = G.reverse_se(img_B) if reverse_style_encoder else G.encode(img_B)
+
+        if hasattr(G, 'variational_style_encoder') and G.variational_style_encoder:
+            style_old_mu = style_old[:,:style_old.size(1)//2]
+            style_old_logvar = style_old[:,style_old.size(1)//2:]
+            style_old = gaussian_reparameterization(style_old_mu, style_old_logvar)
+            style_mu = style[:,:style.size(1)//2]
+            style_logvar = style[:,style.size(1)//2:]
+            style = gaussian_reparameterization(style_mu, style_logvar)
+
         img = G.decode(content, style_old)
         out_img = G.decode(content, style)
         out = image_grid([img_A, img_B, out_img, img], 4)
