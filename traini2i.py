@@ -142,6 +142,7 @@ def parse_comma_separated_list(s):
 @click.option('--style_recon_nce_mlp_layers',  help='map style code into latent space for computing NCE loss', type=click.IntRange(min=0, max=8), default=0)
 @click.option('--randn_style',   help='sample style from normal distribution', is_flag=True)
 @click.option('--same_style_encoder',   help='single style encoder for images of both domains', is_flag=True)
+@click.option('--reverse_style_is_norm',   help='style of B domain should be standard gaussian distribution', is_flag=True)
 @click.option('--lambda_style_KLD', type=float, default=0.0, show_default=True)
 @click.option('--lambda_style_recon', type=float, default=8.0, show_default=True)
 @click.option('--shuffle_style',   help='shuffle style codes of one batch', is_flag=True)
@@ -387,6 +388,7 @@ def main(**kwargs):
     c.loss_kwargs.style_recon_nce_mlp_layers = opts.style_recon_nce_mlp_layers
     c.loss_kwargs.randn_style = opts.randn_style
     c.loss_kwargs.same_style_encoder = opts.same_style_encoder
+    c.loss_kwargs.reverse_style_is_norm = opts.reverse_style_is_norm
     c.loss_kwargs.shuffle_style = opts.shuffle_style
     c.loss_kwargs.weight_strategy = opts.weight_strategy
     c.use_ema_model = opts.resume_ema
