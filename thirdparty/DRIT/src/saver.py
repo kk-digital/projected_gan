@@ -3,6 +3,7 @@ import torchvision
 from tensorboardX import SummaryWriter
 import numpy as np
 from PIL import Image
+from tdlogger import TdLogger
 
 # tensor to PIL Image
 def tensor2img(img):
@@ -23,12 +24,15 @@ def save_imgs(imgs, names, path):
 
 class Saver():
   def __init__(self, opts):
+    self.opts = opts
+    self.logger = TdLogger(opts.logger_endpoint, "", 1000, (opts.logger_username,opts.logger_password), group_prefix=f'DRITXX-{opts.name}', disabled=opts.logger_disable)
     self.display_dir = os.path.join(opts.display_dir, opts.name)
     self.model_dir = os.path.join(opts.result_dir, opts.name)
     self.image_dir = os.path.join(self.model_dir, 'images')
     self.display_freq = opts.display_freq
     self.img_save_freq = opts.img_save_freq
     self.model_save_freq = opts.model_save_freq
+    self.logger.info("initializing ...")
 
     # make directory
     if not os.path.exists(self.display_dir):
@@ -58,10 +62,12 @@ class Saver():
       assembled_images = model.assemble_outputs()
       img_filename = '%s/gen_%05d.jpg' % (self.image_dir, ep)
       torchvision.utils.save_image(assembled_images / 2 + 0.5, img_filename, nrow=1)
+      self.logger.sendBlobFile(img_filename, os.path.basename(img_filename), f'/validation_images/DRITXX-{self.opts.name}/{os.path.basename(img_filename)}', "validation_images")
     elif ep == -1:
       assembled_images = model.assemble_outputs()
       img_filename = '%s/gen_last.jpg' % (self.image_dir, ep)
       torchvision.utils.save_image(assembled_images / 2 + 0.5, img_filename, nrow=1)
+      self.logger.sendBlobFile(img_filename, os.path.basename(img_filename), f'/validation_images/DRITXX-{self.opts.name}/{ep}-{os.path.basename(img_filename)}', "validation_images")
 
   # save model
   def write_model(self, ep, total_it, model):

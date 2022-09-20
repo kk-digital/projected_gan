@@ -14,6 +14,10 @@ class TrainOptions():
     self.parser.add_argument('--input_dim_b', type=int, default=3, help='# of input channels for domain B')
     self.parser.add_argument('--nThreads', type=int, default=8, help='# of threads for data loader')
     self.parser.add_argument('--no_flip', action='store_true', help='specified if no flipping')
+    self.parser.add_argument('--logger_endpoint', type=str, default='http:://localhost:5445', help='tdlogger endpoint')
+    self.parser.add_argument('--logger_username', type=str, default='admin', help='logger credential')
+    self.parser.add_argument('--logger_password', type=str, default='123456', help='logger credential')
+    self.parser.add_argument('--logger_disable', action='store_true', help='disable logger')
 
     # ouptput related
     self.parser.add_argument('--name', type=str, default='trial', help='folder name to save outputs')
