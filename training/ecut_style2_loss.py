@@ -244,10 +244,11 @@ class ECUTStyle2Loss(Loss):
                 A_content, A_style = self.G.encode(A)
                 B_style = reverse_se.style_encode(B)
                 aug_A_style = self.G.style_encode(aug_A)
+                aug_B_style = reverse_se.style_encode(aug_B)
                 rand_A_style = torch.randn([batch_size, self.latent_dim]).to(device)
 
-                idx = torch.randperm(2 * batch_size)
-                input_A_style = torch.cat([aug_A_style, rand_A_style], 0)[idx][:batch_size]
+                idx = torch.randperm(3 * batch_size)
+                input_A_style = torch.cat([aug_A_style, rand_A_style, aug_B_style], 0)[idx][:batch_size]
                 fake_B = self.G.decode(A_content, input_A_style)
                 
                 # Adversarial loss
