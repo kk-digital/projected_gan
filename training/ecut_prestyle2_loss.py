@@ -14,6 +14,8 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import dnnlib
+import kornia.augmentation as K
+import kornia
 from torch import nn, autograd
 from torch.nn.utils import spectral_norm
 from models.gaussian_vae import gaussian_reparameterization, univariate_gaussian_KLD
@@ -98,6 +100,12 @@ class ECUTPreStyle2Loss(Loss):
         self.criterionIdt = torch.nn.MSELoss()
         self.criterionStyleRecon = losses.ContrastiveNCELoss() if style_recon_nce else torch.nn.MSELoss()
         self.latent_dim = self.G.latent_dim
+        self.aug = nn.Sequential(
+            K.RandomAffine(degrees=(-20,20), scale=(0.8, 1.2), translate=(0.1, 0.1), shear=0.15),
+            kornia.geometry.transform.Resize(256+30),
+            K.RandomCrop((256,256)),
+            K.RandomHorizontalFlip(),
+        )
 
         if feature_net == 'efficientnet_lite':
             self.netPre = losses.EfficientNetLite().to(self.device)
@@ -177,9 +185,7 @@ class ECUTPreStyle2Loss(Loss):
             self.F.style_nce_mlp = nn.Sequential(*mlp)
 
         self.F.create_mlp(feat)
-        if self.same_style_encoder:
-            self.G.reverse_se = self.G.encoder
-        else:
+        if not self.same_style_encoder:
             encoder = reduce(lambda a, b: a or b, map(lambda u: isinstance(self.G, u[0]) and u[1], valid_gen_encoder))
             if isinstance(self.G, Gs):
                 self.G.reverse_se = encoder(self.G.size, self.G.latent_dim, n_res=self.G.n_res, variational_style_encoder=self.lambda_style_KLD>0).to(self.device).requires_grad_(False)
@@ -226,15 +232,24 @@ class ECUTPreStyle2Loss(Loss):
         n_iter = cur_nimg // real_A.size(0)
 
         if do_Gmain:
+            reverse_se = self.G.encoder if self.same_style_encoder else self.G.reverse_se
 
             # Gmain: Maximize logits for generated images.
             with torch.autograd.profiler.record_function('Gmain_forward'):
+                A = self.aug(real_A[[np.random.randint(batch_size)]].expand_as(real_A))
+                B = self.aug(real_B[[np.random.randint(batch_size)]].expand_as(real_B))
+                real_A = self.aug(real_A)
+                real_B = self.aug(real_B)
+
                 real_A_content, real_A_style = self.G.encode(real_A)
+                real_B_style = reverse_se.style_encode(real_B)
+                A_style = self.G.style_encode(A)
+                B_style = reverse_se.style_encode(B)
                 loss_Gmain = 0
 
                 if self.shuffle_style:
-                    idx = torch.randperm(batch_size)
-                    real_A_style = real_A_style[idx]
+                    idx = torch.randperm(batch_size * 2)
+                    real_A_style = torch.cat([real_A_style, real_B_style], dim=0)[idx][:batch_size]
 
                 if self.randn_style:
                     rand_A_style = torch.randn([batch_size, self.latent_dim]).to(device).requires_grad_()
@@ -256,6 +271,15 @@ class ECUTPreStyle2Loss(Loss):
                 training_stats.report('Loss/scores/fake', gen_logits)
                 training_stats.report('Loss/signs/fake', gen_logits.sign())
                 training_stats.report('Loss/G/gan', loss_Gmain_GAN)
+
+                if self.lambda_style_consis > 0:
+                    loss_Gmain_consis_A = A_style.var(0, unbiased=False).sum()
+                    training_stats.report('Loss/G/StyleConsistency_A', loss_Gmain_consis_A)
+
+                    loss_Gmain_consis_B = B_style.var(0, unbiased=False).sum()
+                    training_stats.report('Loss/G/StyleConsistency_B', loss_Gmain_consis_B)
+
+                    loss_Gmain = loss_Gmain + (loss_Gmain_consis_A + loss_Gmain_consis_B) * self.lambda_style_consis
 
                 if self.lambda_style_KLD > 0:
                     loss_Gmain_style_KLD = univariate_gaussian_KLD(real_A_style_mu, real_A_style_logvar)
@@ -285,7 +309,7 @@ class ECUTPreStyle2Loss(Loss):
                     loss_Gmain = loss_Gmain + loss_Gmain_NCE * self.lambda_NCE
                 
                 if self.lambda_style_recon > 0:
-                    recon_style = self.G.reverse_se.style_encode(fake_B)
+                    recon_style = reverse_se.style_encode(fake_B)
                     if self.lambda_style_KLD > 0:
                         recon_style_mu = recon_style[:,:recon_style.size(1)//2]
                         recon_style_logvar = recon_style[:,recon_style.size(1)//2:]
@@ -306,6 +330,7 @@ class ECUTPreStyle2Loss(Loss):
                     training_stats.report('Loss/G/StyleReconstruction', loss_Gmain_style_recon)
                     loss_Gmain = loss_Gmain + loss_Gmain_style_recon * self.lambda_style_recon
 
+                self.real_B = real_B
                 self.fake_B = fake_B.detach()
                 self.real_A_style = real_A_style.detach()
                 training_stats.report('Loss/G/loss', loss_Gmain)
@@ -335,7 +360,7 @@ class ECUTPreStyle2Loss(Loss):
 
             # Dmain: Maximize logits for real images.
             with torch.autograd.profiler.record_function('Dreal_forward'):
-                real_B = real_B.detach()
+                real_B = self.real_B.detach()
                 if n_iter % self.d_reg_every == 0 and self.lambda_r1 > 0:
                     real_B.requires_grad = True
                 real_logits = self.run_D(real_B, blur_sigma=blur_sigma)
