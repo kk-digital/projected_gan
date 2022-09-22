@@ -561,7 +561,7 @@ def training_loop(
 
         # Evaluate metrics.
         # if (snapshot_data is not None) and (len(metrics) > 0):
-        if cur_tick and (snapshot_data is not None) and (len(metrics) > 0):
+        if rank == 0 and cur_tick and (snapshot_data is not None) and (len(metrics) > 0):
             fid_val = best_fid + 1
             kid_val = best_kid + 1
             if rank == 0:
@@ -608,11 +608,11 @@ def training_loop(
 
         # Update logs.
         timestamp = time.time()
-        if stats_jsonl is not None:
+        if rank == 0 and stats_jsonl is not None:
             fields = dict(stats_dict, timestamp=timestamp)
             stats_jsonl.write(json.dumps(fields) + '\n')
             stats_jsonl.flush()
-        if stats_tfevents is not None:
+        if rank == 0 and stats_tfevents is not None:
             global_step = int(cur_nimg / 1e3)
             walltime = timestamp - start_time
             for name, value in stats_dict.items():
@@ -620,7 +620,7 @@ def training_loop(
             for name, value in stats_metrics.items():
                 stats_tfevents.add_scalar(f'Metrics/{name}', value, global_step=global_step, walltime=walltime)
             stats_tfevents.flush()
-        if logger is not None:
+        if rank == 0 and logger is not None:
             keys = list(stats_dict.keys())
             tables = set(map(lambda key: key.split('/')[0], keys))
             for tbl in tables:

@@ -15,6 +15,7 @@ import re
 import json
 import tempfile
 import torch
+from dnnlib.util import EasyDict
 import legacy
 
 import dnnlib
@@ -29,6 +30,10 @@ from torch_utils import misc
 
 def subprocess_fn(rank, c, temp_dir):
     dnnlib.util.Logger(file_name=os.path.join(c.run_dir, 'log.txt'), file_mode='a', should_flush=True)
+    logger = c.logger
+    if isinstance(logger, EasyDict):
+        logger = TdLogger(**logger)
+        c.logger = logger
 
     # Init torch.distributed.
     if c.num_gpus > 1:
@@ -96,7 +101,7 @@ def launch_training(c, exconf, desc, outdir, dry_run):
     with open(os.path.join(c.run_dir, 'training_options.json'), 'wt+') as f:
         json.dump(c, f, indent=2)
     logger.send(json.dumps(c, indent=2), desc + "/training options", direct=True)
-    c.logger = logger
+    c.logger = logger if c.num_gpus == 1 else exconf.logger_args
     c.desc = desc
     c.loss_kwargs.run_dir = c.run_dir
 
@@ -248,8 +253,9 @@ def main(**kwargs):
     c.data_loader_kwargs = dnnlib.EasyDict(pin_memory=True, prefetch_factor=2)
 
     # logger set
-    logger = TdLogger(opts.logger_endpoint, "i2i", opts.logger_queuesize, group_prefix=opts.logger_prefix, credential=('admin', '123456'), disabled=opts.disable_logger)
-    exconf = dnnlib.EasyDict(logger = logger)
+    logger_args = dnnlib.EasyDict(endpoint=opts.logger_endpoint, default_group="i2i", bufferQueueSize=opts.logger_queuesize, group_prefix=opts.logger_prefix, credential=('admin', '123456'), disabled=opts.disable_logger)
+    logger = TdLogger(**logger_args)
+    exconf = dnnlib.EasyDict(logger = logger, logger_args = logger_args)
 
     # Training set.
     c.training_set_kwargs = dnnlib.EasyDict(

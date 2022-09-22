@@ -149,7 +149,9 @@ class Collector:
         r"""Returns the names of all statistics broadcasted so far that
         match the regular expression specified at construction time.
         """
-        return [name for name in _names if self._regex.fullmatch(name)]
+        names = [name for name in _names if self._regex.fullmatch(name)]
+        names.sort()
+        return names
 
     def update(self):
         r"""Copies current values of the internal counters to the
@@ -259,7 +261,7 @@ def _sync(names):
     deltas = torch.stack(deltas)
 
     # Sum deltas across ranks.
-    if _sync_device is not None:
+    if _sync_device is not None and False:
         torch.distributed.all_reduce(deltas)
 
     # Update cumulative values.
