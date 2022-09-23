@@ -54,14 +54,13 @@ def generate_images(
     eval_set_kwargs.serial_batches = False
     eval_set_kwargs.max_dataset_size = 10000
     eval_set = dnnlib.util.construct_class_by_name(**eval_set_kwargs)
-    dataloader = torch.utils.data.DataLoader(dataset=eval_set, batch_size=1)
 
     matrix_A: torch.Tensor = list(G.decoder.mapping.parameters())[0]
     matrix_ATA = torch.matmul(matrix_A.transpose(1, 0), matrix_A)
     eig_info = torch.eig(matrix_ATA, eigenvectors=True)
     eigenvectors = eig_info.eigenvectors
     eig_changes = []
-    for i in range(eigenvectors.size(0)):
+    for i in range(min(eigenvectors.size(0), 8)):
         ev = eigenvectors[i]
         l, h = -num_images//2, num_images//2
         eig_changes.append(torch.stack([ev * alpha * j for j in range(l, h)], dim=0))
@@ -70,12 +69,12 @@ def generate_images(
         the_style = torch.randn([1, G.latent_dim]).to(device)
 
     # Generate images.
-    for i, imgs in tqdm(enumerate(dataloader)):
+    for i, imgs in tqdm(enumerate(eval_set), total=len(eval_set)):
         if i > len(eval_set):
             break
 
-        img = imgs['A'].to(device)
-        img_path = imgs['A_paths'][0]
+        img = imgs['A'].to(device).unsqueeze(0)
+        img_path = imgs['A_paths']
 
         content, style = G.encode(img)
         if fixed_style:

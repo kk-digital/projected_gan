@@ -54,10 +54,9 @@ def generate_images(
     eval_set_kwargs.serial_batches = False
     eval_set_kwargs.max_dataset_size = 10000
     eval_set = dnnlib.util.construct_class_by_name(**eval_set_kwargs)
-    dataloader = torch.utils.data.DataLoader(dataset=eval_set, batch_size=1)
 
     latent_changes = []
-    for i in range(G.latent_dim):
+    for i in range(min(G.latent_dim, 8)):
         delta = torch.zeros([G.latent_dim], device=device, dtype=torch.float)
         delta[i] = 1
         l, h = -num_images//2, num_images//2
@@ -67,12 +66,12 @@ def generate_images(
         the_style = torch.randn([1, G.latent_dim]).to(device)
 
     # Generate images.
-    for i, imgs in tqdm(enumerate(dataloader)):
+    for i, imgs in tqdm(enumerate(eval_set), total=len(eval_set)):
         if i > len(eval_set):
             break
 
-        img = imgs['A'].to(device)
-        img_path = imgs['A_paths'][0]
+        img = imgs['A'].to(device).unsqueeze(0)
+        img_path = imgs['A_paths']
 
         content, style = G.encode(img)
         out_images = []

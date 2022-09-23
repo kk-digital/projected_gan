@@ -8,6 +8,7 @@
 
 """Generate images using pretrained network pickle."""
 
+import math
 import os
 import click
 from tqdm import tqdm
@@ -49,20 +50,19 @@ def generate_images(
     eval_set_kwargs.serial_batches = False
     eval_set_kwargs.max_dataset_size = 10000
     eval_set = dnnlib.util.construct_class_by_name(**eval_set_kwargs)
-    dataloader = torch.utils.data.DataLoader(dataset=eval_set, batch_size=1)
 
     latent_dim: int = G.latent_dim
     latens = [ torch.randn([1, latent_dim]).to(device) for _ in range(num_per_image) ]
     # Generate images.
-    for i, imgs in tqdm(enumerate(dataloader)):
+    for i, imgs in tqdm(enumerate(eval_set), total=len(eval_set)):
         if i > len(eval_set):
             break
 
         if not same_style:
             latens = [ torch.randn([1, latent_dim]).to(device) for _ in range(num_per_image) ]
 
-        img = imgs['A'].to(device)
-        img_path = imgs['A_paths'][0]
+        img = imgs['A'].to(device).unsqueeze(0)
+        img_path = imgs['A_paths']
 
         content, style = G.encode(img)
         o1 = G.decode(content, style)
@@ -70,7 +70,7 @@ def generate_images(
         for lat in latens:
             out_images.append(G.decode(content, lat))
 
-        out = image_grid(out_images, 1)
+        out = image_grid([ torch.cat(out_images, dim=0) ], math.ceil(math.sqrt(len(out_images))))
         out = (out.permute(1, 2, 0) * 127.5 + 128).clamp(0, 255).to(torch.uint8)
         PIL.Image.fromarray(out.cpu().numpy(), 'RGB').save(f'{outdir}/{os.path.basename(img_path)}', quality=100, subsampling=0)
 
