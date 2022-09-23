@@ -68,7 +68,7 @@ class ECUTStyle2Loss(Loss):
                  nce_layers: list, feature_net: str, nce_idt: bool, num_patches: int,
                  style_recon_nce: bool = False, style_recon_force_idt: bool = False, feature_attn_layers: int=0, patch_max_shape: Tuple[int,int]=(256,256),
                  same_style_encoder: bool = False, normalize_transformer_out: bool = True, sim_pnorm: float = 0,
-                 lambda_GAN: float=1.0, lambda_NCE: float=1.0, lambda_identity: float = 0,
+                 lambda_style_GAN: float=2.0, lambda_GAN: float=1.0, lambda_NCE: float=1.0, lambda_identity: float = 0,
                  lambda_r1: float = 0, d_reg_every: int = 16, reverse_style_is_norm: bool=False,
                  lambda_style_consis: float=50.0, lambda_style_recon: float = 5,
                  blur_init_sigma=0, blur_fade_kimg=0, **kwargs):
@@ -85,6 +85,7 @@ class ECUTStyle2Loss(Loss):
         self.patch_max_shape = patch_max_shape
         self.normalize_transformer_out = normalize_transformer_out
         self.lambda_GAN = lambda_GAN
+        self.lambda_style_GAN = lambda_style_GAN
         self.lambda_NCE = lambda_NCE
         self.lambda_identity = lambda_identity
         self.lambda_style_consis = lambda_style_consis
@@ -260,13 +261,13 @@ class ECUTStyle2Loss(Loss):
                 training_stats.report('Loss/G/gan', loss_Gmain_GAN)
                 gen_style_logits = torch.cat(self.D.latent_dis(aug_A_style), dim=1)
                 loss_Gmain_GAN_style = (-gen_style_logits).mean()
-                loss_Gmain = loss_Gmain + loss_Gmain_GAN_style * self.lambda_GAN * 2
+                loss_Gmain = loss_Gmain + loss_Gmain_GAN_style * self.lambda_style_GAN
                 training_stats.report('Loss/G/gan_style', loss_Gmain_GAN_style)
                 if self.reverse_style_is_norm:
                     aug_B_style = reverse_se.style_encode(aug_B)
                     gen_style_logits_B = torch.cat(self.D.reverse_latent_dis(aug_B_style), dim=1)
                     loss_Gmain_GAN_style_B = (-gen_style_logits_B).mean()
-                    loss_Gmain = loss_Gmain + loss_Gmain_GAN_style_B * self.lambda_GAN * 2
+                    loss_Gmain = loss_Gmain + loss_Gmain_GAN_style_B * self.lambda_style_GAN
                     training_stats.report('Loss/G/gan_style_B', loss_Gmain_GAN_style_B)
                     self.aug_B_style = aug_B_style.detach()
 

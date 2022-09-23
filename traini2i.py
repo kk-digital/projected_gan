@@ -149,6 +149,7 @@ def parse_comma_separated_list(s):
 @click.option('--same_style_encoder',   help='single style encoder for images of both domains', is_flag=True)
 @click.option('--reverse_style_is_norm',   help='style of B domain should be standard gaussian distribution', is_flag=True)
 @click.option('--lambda_style_KLD', type=float, default=0.0, show_default=True)
+@click.option('--lambda_style_GAN', type=float, default=2.0, show_default=True)
 @click.option('--lambda_style_recon', type=float, default=8.0, show_default=True)
 @click.option('--shuffle_style',   help='shuffle style codes of one batch', is_flag=True)
 @click.option('--normalize_style',   help='normalize style code with p=2', is_flag=True)
@@ -365,6 +366,7 @@ def main(**kwargs):
     c.loss_kwargs.patch_size = opts.patch_size
     c.loss_kwargs.sim_pnorm = opts.nce_sim_pnorm
     c.loss_kwargs.lambda_style_KLD = opts.lambda_style_kld
+    c.loss_kwargs.lambda_style_GAN = opts.lambda_style_gan
     c.loss_kwargs.lambda_style_recon = opts.lambda_style_recon
     c.loss_kwargs.lambda_GAN = opts.lambda_gan
     c.loss_kwargs.lambda_GAN_random = opts.lambda_gan_random
