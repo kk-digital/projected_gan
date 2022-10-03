@@ -17,6 +17,7 @@ import PIL.Image
 import torch
 import legacy
 from visual_utils import image_grid
+from models.gaussian_vae import gaussian_reparameterization
 
 
 @click.command()
@@ -65,6 +66,8 @@ def generate_images(
         img_path = imgs['A_paths']
 
         content, style = G.encode(img)
+        if hasattr(G, 'variational_style_encoder') and G.variational_style_encoder:
+            style = gaussian_reparameterization(style[:,:style.size(1)//2], style[:,style.size(1)//2:])
         o1 = G.decode(content, style)
         out_images = [ img, o1 ]
         for lat in latens:
