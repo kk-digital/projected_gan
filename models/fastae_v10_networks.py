@@ -172,7 +172,7 @@ class SEBlock(nn.Module):
         return feat_big * self.main(feat_small)
 
 class Decoder(nn.Module):
-    def __init__(self, ngf: int=128, nc=3, img_resolution=256, lite: bool=False, unet: bool=True):
+    def __init__(self, ngf: int=128, nc=3, img_resolution=256, lite: bool=False, unet_layers: list = None):
         super().__init__()
         self.img_resolution = img_resolution
         nfc_multi = {2: 16, 4:16, 8:8, 16:4, 32:2, 64:2, 128:1, 256:0.5,
@@ -181,15 +181,14 @@ class Decoder(nn.Module):
         for k, v in nfc_multi.items():
             nfc[k] = int(v*ngf)
         
-        self.unet = unet
-        unet_multiplier = 2 if unet else 1
+        self.unet_layers = unet_layers
 
         UpBlock = UpBlockSmall if lite else UpBlockBig
         self.feat_8   = UpBlock(nfc[4], nfc[8])
-        self.feat_16  = UpBlock(nfc[8], nfc[16])
-        self.feat_32  = UpBlock(nfc[16]*unet_multiplier, nfc[32])
-        self.feat_64  = UpBlock(nfc[32]*unet_multiplier, nfc[64])
-        self.feat_128 = UpBlock(nfc[64]*unet_multiplier, nfc[128])
+        self.feat_16  = UpBlock(nfc[8] * (2 if 8 in unet_layers else 1), nfc[16])
+        self.feat_32  = UpBlock(nfc[16]* (2 if 16 in unet_layers else 1), nfc[32])
+        self.feat_64  = UpBlock(nfc[32]* (2 if 32 in unet_layers else 1), nfc[64])
+        self.feat_128 = UpBlock(nfc[64]* (2 if 64 in unet_layers else 1), nfc[128])
         self.feat_256 = UpBlock(nfc[128], nfc[256])
 
         self.se_64  = SEBlock(nfc[4], nfc[64])
@@ -207,10 +206,10 @@ class Decoder(nn.Module):
     def forward(self, content):
         o64, o32, o16, o8, o4 = content
         feat_8 = self.feat_8(o4)
-        feat_16 = self.feat_16(feat_8)
-        feat_32 = self.feat_32(torch.cat([feat_16, o16], dim=1) if self.unet else feat_16)
-        feat_64 = self.se_64(o4, self.feat_64(torch.cat([feat_32, o32], dim=1) if self.unet else feat_32))
-        feat_128 = self.se_128(feat_8, self.feat_128(torch.cat([feat_64, o64], dim=1) if self.unet else feat_64))
+        feat_16 = self.feat_16(torch.cat([feat_8, o8], dim=1) if 8 in self.unet_layers else feat_8 )
+        feat_32 = self.feat_32(torch.cat([feat_16, o16], dim=1) if 16 in self.unet_layers else feat_16)
+        feat_64 = self.se_64(o4, self.feat_64(torch.cat([feat_32, o32], dim=1) if 32 in self.unet_layers else feat_32))
+        feat_128 = self.se_128(feat_8, self.feat_128(torch.cat([feat_64, o64], dim=1) if 64 in self.unet_layers else feat_64))
         feat_256 = self.se_256(feat_16, self.feat_256(feat_128))
         feat_last = feat_256
 
@@ -225,14 +224,14 @@ class Decoder(nn.Module):
 
 
 class Generator(nn.Module):
-    def __init__(self, ngf: int=128, nc=3, img_resolution=256, lite: bool=False, unet: bool=True, **kwargs):
+    def __init__(self, ngf: int=128, nc=3, img_resolution=256, lite: bool=False, unet_layers: list=None, **kwargs):
         super().__init__()
         self.ngf = ngf
         self.nc = nc
         self.img_resolution = img_resolution
         self.lite = lite
         self.encoder = Encoder(ngf=ngf, nc=nc, img_resolution=img_resolution)
-        self.decoder = Decoder(ngf=ngf, nc=nc, img_resolution=img_resolution, lite=lite, unet=unet)
+        self.decoder = Decoder(ngf=ngf, nc=nc, img_resolution=img_resolution, lite=lite, unet_layers=unet_layers)
     
     def encode(self, img):
         return self.encoder(img)

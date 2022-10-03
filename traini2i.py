@@ -140,7 +140,7 @@ def parse_comma_separated_list(s):
 # Generator
 @click.option('--ngf',  help='base channel', type=click.IntRange(min=0, max=512), default=0)
 @click.option('--latent_dim',  help='style generator: style latent dimension', type=click.IntRange(min=0, max=4096), default=0)
-@click.option('--not_unet',   help='disable unet', is_flag=True)
+@click.option('--unet_layers',   help='UNet Layers', type=str, default='16,32,64', show_default=True)
 
 # Style
 @click.option('--style_recon_nce',   help='using NCE loss instead of MSELoss for style reconstruction', is_flag=True)
@@ -306,7 +306,7 @@ def main(**kwargs):
         c.G_kwargs.ngf = opts.ngf
     if opts.latent_dim > 0:
         c.G_kwargs.latent_dim = opts.latent_dim
-    c.G_kwargs.unet = not opts.not_unet
+    c.G_kwargs.unet_layers = list(map(lambda x: int(x), opts.unet_layers.split(','))) 
     c.G_kwargs.normalize_style = opts.normalize_style
     
     c.F_kwargs = dnnlib.EasyDict(class_name=opts.netf)
