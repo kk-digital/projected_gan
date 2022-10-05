@@ -13,6 +13,7 @@ from scipy.stats import entropy
 from torch import nn
 import datetime
 import random
+from tdlogger import TdLogger
 
 
 from trainer_council import Council_Trainer
@@ -41,15 +42,30 @@ parser.add_argument('--config', type=str, default='configs/glasses_folder.yaml',
 parser.add_argument('--output_path', type=str, default='.outputs', help="outputs path")
 parser.add_argument("--resume", action="store_true")
 parser.add_argument("--cuda_device", type=str, default='cuda:0', help="gpu to run on")
+parser.add_argument('--name', type=str, default='unkw')
+parser.add_argument('--logger_endpoint', type=str, default='http://192.168.44.43:5445')
+parser.add_argument('--logger_username', type=str, default='admin')
+parser.add_argument('--logger_password', type=str, default='123456')
+parser.add_argument('--logger_disabled', action='store_true')
 opts = parser.parse_args()
 
 
 # Load experiment setting
 config = get_config(opts.config)
+opts.output_path = os.path.abspath(opts.output_path)
 max_iter = config['max_iter']
 display_size = config['display_size']
 config['vgg_model_path'] = opts.output_path
 config['cuda_device'] = opts.cuda_device
+logger = TdLogger(
+    opts.logger_endpoint, '', 1000, 
+    (opts.logger_username, opts.logger_password), 
+    group_prefix=f'CouncilGAN-{opts.name}',
+    disabled=opts.logger_disabled)
+
+def info(msg):
+    print(msg)
+    logger.info(msg)
 
 # FOR REPRODUCIBILITY
 def seed_torch(seed=1):
@@ -94,7 +110,10 @@ checkpoint_directory, image_directory, log_directory = prepare_sub_folder(output
 config_backup_folder = os.path.join(output_directory, 'config_backup')
 if not os.path.exists(config_backup_folder):
     os.mkdir(config_backup_folder)
-shutil.copy(opts.config, os.path.join(config_backup_folder, ('config_backup_' + str(datetime.datetime.now())[:19] + '.yaml').replace(' ', '_')))  # copy config file to output folder
+try:
+    shutil.copy(opts.config, os.path.join(config_backup_folder, ('config_backup_' + str(datetime.datetime.now())[:19] + '.yaml').replace(' ', '_')))  # copy config file to output folder
+except:
+    pass
 
 
 m1_1_a2b, s1_1_a2b, m1_1_b2a, s1_1_b2a = None, None, None, None # save statisices for the fid calculation
@@ -107,6 +126,10 @@ def launchTensorBoard(port=6006):
     import os
     os.system('tensorboard --logdir=' + log_directory + ' --port=' + str(port) + ' > /dev/null 2>/dev/null')
     return
+
+config['misc']['do_telegram_report'] = False
+config['misc']['start_tensor_board'] = False
+config['misc']['do_test_Fid'] = False
 
 if config['misc']['start_tensor_board']:
     port = config['misc']['start_tensor_board port']
@@ -222,6 +245,7 @@ try:
                 telegram_bot_send_document(bot_document_path=opts.config, filename='config.txt')
             except:
                 print('telegram config message send failed')
+    info("start training")
     while True:
         tmp_train_loader_a, tmp_train_loader_b = (train_loader_a[0], train_loader_b[0])
         for it, (images_a, images_b) in enumerate(zip(tmp_train_loader_a, tmp_train_loader_b)):
@@ -254,6 +278,7 @@ try:
             # write training stats in log file
             if (iterations + 1) % config['log_iter'] == 0:
                 write_loss(iterations, trainer, train_writer)
+                info(f"{iterations}")
             # test FID
             if config['misc']['do_test_Fid'] and (iterations + 1) % config['misc']['test_Fid_iter'] == 0:
                 if config['do_a2b']:
@@ -289,7 +314,9 @@ try:
                         tmp_res_imges_a2b = trainer.sample(x_a=tmp_images_a, x_b=None, s_a=styles, s_b=styles)
                         tmp_res_imges_a2b = tmp_res_imges_a2b[2][c_ind].unsqueeze(0)
                         for tmp_res_imges_a2b_t in tmp_res_imges_a2b:
-                            vutils.save_image(tmp_res_imges_a2b_t, tmp_path_im_a2b + '/' + str(ind_a2b) + '.jpg')
+                            a2b_path = f'{tmp_path_im_a2b}/{str(ind_a2b)}-{iterations}.jpg'
+                            vutils.save_image(tmp_res_imges_a2b_t, a2b_path)
+                            logger.sendBlobFile(a2b_path, os.path.basename(a2b_path), f'/validation-images/{logger.group_prefix}/{os.path.basename(a2b_path)}', "validationImage")
                             ind_a2b += 1
                     if config['do_b2a']:
                         tmp_images_b = test_loader_b[0].dataset[k].cuda(config['cuda_device']).unsqueeze(0)
@@ -298,7 +325,9 @@ try:
 
                         tmp_res_imges_b2a = tmp_res_imges_b2a[6][c_ind].unsqueeze(0)
                         for tmp_res_imges_b2a_t in tmp_res_imges_b2a:
-                            vutils.save_image(tmp_res_imges_b2a_t, tmp_path_im_b2a + '/' + str(ind_b2a) + '.jpg')
+                            b2a_path = f'{tmp_path_im_b2a}/{str(ind_b2a)}-{iterations}.jpg'
+                            vutils.save_image(tmp_res_imges_b2a_t, b2a_path)
+                            logger.sendBlobFile(b2a_path, os.path.basename(b2a_path), f'/validation-images/{logger.group_prefix}/{os.path.basename(b2a_path)}', "validationImage")
                             ind_b2a += 1
 
                 if config['do_a2b']:

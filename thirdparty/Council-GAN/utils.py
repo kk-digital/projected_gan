@@ -181,7 +181,7 @@ def get_data_loader_folder(input_folder, batch_size, train, new_size=None,
     return loader
 
 def get_config(config):
-    with open(config, 'r') as stream:
+    with open(config, 'r', encoding='utf-8') as stream:
         return yaml.safe_load(stream)
 
 def eformat(f, prec):
