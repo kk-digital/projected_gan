@@ -10,6 +10,7 @@ from tdlogger import TdLogger
 class UGATIT(object) :
     def __init__(self, args):
         self.light = args.light
+        self.start_iter = args.start_iter
 
         self.logger = TdLogger(
             args.logger_endpoint, '', 1000, 
@@ -136,17 +137,23 @@ class UGATIT(object) :
     def train(self):
         self.genA2B.train(), self.genB2A.train(), self.disGA.train(), self.disGB.train(), self.disLA.train(), self.disLB.train()
 
-        start_iter = 1
+        start_iter = self.start_iter if self.resume else 1
         if self.resume:
-            model_list = glob(os.path.join(self.result_dir, self.dataset, 'model', '*.pt'))
-            if not len(model_list) == 0:
-                model_list.sort()
-                start_iter = int(model_list[-1].split('_')[-1].split('.')[0])
-                self.load(os.path.join(self.result_dir, self.dataset, 'model'), start_iter)
-                print(" [*] Load SUCCESS")
-                if self.decay_flag and start_iter > (self.iteration // 2):
-                    self.G_optim.param_groups[0]['lr'] -= (self.lr / (self.iteration // 2)) * (start_iter - self.iteration // 2)
-                    self.D_optim.param_groups[0]['lr'] -= (self.lr / (self.iteration // 2)) * (start_iter - self.iteration // 2)
+            latest_model = os.path.join(self.result_dir, self.dataset + '_params_latest.pt')
+            if os.path.exists(latest_model):
+                start_iter = self.load(latest_model, start_iter) or start_iter
+                print(f" [*] Load SUCCESS: {latest_model}")
+            else:
+                model_list = glob(os.path.join(self.result_dir, self.dataset, 'model', '*.pt'))
+                if not len(model_list) == 0:
+                    model_list.sort()
+                    start_iter = int(model_list[-1].split('_')[-1].split('.')[0])
+                    start_iter = self.load(os.path.join(self.result_dir, self.dataset, 'model'), start_iter) or start_iter
+                    print(" [*] Load SUCCESS")
+
+            if self.decay_flag and start_iter > (self.iteration // 2):
+                self.G_optim.param_groups[0]['lr'] -= (self.lr / (self.iteration // 2)) * (start_iter - self.iteration // 2)
+                self.D_optim.param_groups[0]['lr'] -= (self.lr / (self.iteration // 2)) * (start_iter - self.iteration // 2)
 
         # training loop
         print('training start !')
@@ -349,6 +356,7 @@ class UGATIT(object) :
 
             if step % 1000 == 0:
                 params = {}
+                params['step'] = step
                 params['genA2B'] = self.genA2B.state_dict()
                 params['genB2A'] = self.genB2A.state_dict()
                 params['disGA'] = self.disGA.state_dict()
@@ -359,6 +367,7 @@ class UGATIT(object) :
 
     def save(self, dir, step):
         params = {}
+        params['step'] = step
         params['genA2B'] = self.genA2B.state_dict()
         params['genB2A'] = self.genB2A.state_dict()
         params['disGA'] = self.disGA.state_dict()
@@ -367,14 +376,15 @@ class UGATIT(object) :
         params['disLB'] = self.disLB.state_dict()
         torch.save(params, os.path.join(dir, self.dataset + '_params_%07d.pt' % step))
 
-    def load(self, dir, step):
-        params = torch.load(os.path.join(dir, self.dataset + '_params_%07d.pt' % step))
+    def load(self, dir: str, step: int):
+        params = torch.load(dir) if dir.endswith('.pt') else torch.load(os.path.join(dir, self.dataset + '_params_%07d.pt' % step))
         self.genA2B.load_state_dict(params['genA2B'])
         self.genB2A.load_state_dict(params['genB2A'])
         self.disGA.load_state_dict(params['disGA'])
         self.disGB.load_state_dict(params['disGB'])
         self.disLA.load_state_dict(params['disLA'])
         self.disLB.load_state_dict(params['disLB'])
+        return params['step'] if 'step' in params else 0
 
     def test(self):
         model_list = glob(os.path.join(self.result_dir, self.dataset, 'model', '*.pt'))
