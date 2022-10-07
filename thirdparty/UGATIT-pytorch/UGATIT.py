@@ -256,9 +256,11 @@ class UGATIT(object) :
             self.genA2B.apply(self.Rho_clipper)
             self.genB2A.apply(self.Rho_clipper)
 
-            print("[%5d/%5d] time: %4.4f d_loss: %.8f, g_loss: %.8f" % (step, self.iteration, time.time() - start_time, Discriminator_loss, Generator_loss))
-            if step % self.print_freq == 0:
+            if step % 100 == 0:
+                print("[%5d/%5d] time: %4.4f d_loss: %.8f, g_loss: %.8f" % (step, self.iteration, time.time() - start_time, Discriminator_loss, Generator_loss))
                 self.logger.send({"dis_loss": Discriminator_loss.item(), 'gen_loss': Generator_loss.item()}, group='loss', direct=True)
+
+            if step % self.print_freq == 0:
                 train_sample_num = 5
                 test_sample_num = 5
                 A2B = np.zeros((self.img_size * 7, 0, 3))
