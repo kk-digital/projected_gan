@@ -6,6 +6,17 @@ from networks import *
 from utils import *
 from glob import glob
 from tdlogger import TdLogger
+import GPUtil
+
+
+def report_gpuinfo(logger: TdLogger):
+    gpus = GPUtil.getGPUs()
+    info = {}
+    for i, gpu in enumerate(gpus):
+        info[f"GPUInfo/Load/GPU{i}"] = gpu.load
+        info[f"GPUInfo/MemLoad/GPU{i}"] = gpu.memoryUsed / gpu.memoryTotal
+        info[f"GPUInfo/MemTotal/GPU{i}"] = gpu.memoryTotal
+    logger.send(info, "GPUInfo", direct=True)
 
 class UGATIT(object) :
     def __init__(self, args):
@@ -259,6 +270,7 @@ class UGATIT(object) :
             if step % 100 == 0:
                 print("[%5d/%5d] time: %4.4f d_loss: %.8f, g_loss: %.8f" % (step, self.iteration, time.time() - start_time, Discriminator_loss, Generator_loss))
                 self.logger.send({"dis_loss": Discriminator_loss.item(), 'gen_loss': Generator_loss.item()}, group='loss', direct=True)
+                report_gpuinfo(self.logger)
 
             if step % self.print_freq == 0:
                 train_sample_num = 5
