@@ -199,6 +199,7 @@ def training_loop(
     kimg_per_tick           = 4,        # Progress snapshot interval.
     image_snapshot_ticks    = 50,       # How often to save image snapshots? None = disable.
     network_snapshot_ticks  = 50,       # How often to save network snapshots? None = disable.
+    metrics_ticks           = 50,      # How often to save network snapshots? None = disable.
     resume_pkl              = None,     # Network pickle to resume training from.
     resume_kimg             = 0,        # First kimg to report when resuming training.
     cudnn_benchmark         = True,     # Enable torch.backends.cudnn.benchmark?
@@ -553,11 +554,14 @@ def training_loop(
 
             with open(snapshot_pkl, 'wb') as f:
                pickle.dump(snapshot_data, f)
-            if cur_tick > 0:
+            if cur_tick > 0 and cur_tick % metrics_ticks == 0:
                 ckpt_p = os.path.dirname(snapshot_pkl)
                 ckpt_n = os.path.basename(snapshot_pkl)
                 with open(os.path.join(ckpt_p, f'{cur_tick}-{ckpt_n}'), 'wb') as f:
                     pickle.dump(snapshot_data, f)
+            else:
+                del snapshot_data
+                snapshot_data = None
 
         # Evaluate metrics.
         # if (snapshot_data is not None) and (len(metrics) > 0):
@@ -574,23 +578,19 @@ def training_loop(
                 training_stats.report('Metrics/KID', kid_val)
 
             # save best fid ckpt
-            snapshot_pkl = os.path.join(run_dir, f'best_fid_model.pkl')
-            snapshot_pkl_kid = os.path.join(run_dir, f'best_kid_model.pkl')
-            cur_nimg_txt = os.path.join(run_dir, f'best_fid_nimg.txt')
+            snapshot_fid_txt = os.path.join(run_dir, f'best_fid_model.txt')
+            snapshot_kid_txt = os.path.join(run_dir, f'best_kid_model.txt')
             if rank == 0:
                 if fid_val < best_fid:
                     best_fid = fid_val
 
-                    with open(snapshot_pkl, 'wb') as f:
-                        dill.dump(snapshot_data, f)
-                    # save curr iteration number (directly saving it to pkl leads to problems with multi GPU)
-                    with open(cur_nimg_txt, 'w') as f:
-                        f.write(str(cur_nimg))
+                    with open(snapshot_fid_txt, 'w') as f:
+                        f.write(str(cur_tick))
 
                 if kid_val < best_kid:
                     best_kid = kid_val
-                    with open(snapshot_pkl_kid, 'wb') as f:
-                        dill.dump(snapshot_data, f)
+                    with open(snapshot_kid_txt, 'w') as f:
+                        f.write(str(cur_tick))
 
         del snapshot_data # conserve memory
 
