@@ -71,6 +71,7 @@ class ECUTStyle2Loss(Loss):
                  lambda_style_GAN: float=2.0, lambda_GAN: float=1.0, lambda_NCE: float=1.0, lambda_identity: float = 0,
                  lambda_r1: float = 0, d_reg_every: int = 16, reverse_style_is_norm: bool=False,
                  lambda_style_consis: float=50.0, lambda_style_recon: float = 5,
+                 content_image_noaug: bool = False, output_cons: bool = False,
                  blur_init_sigma=0, blur_fade_kimg=0, **kwargs):
         super().__init__()
         self.device = device
@@ -101,6 +102,8 @@ class ECUTStyle2Loss(Loss):
         self.style_recon_force_idt = style_recon_force_idt
         self.style_recon_nce = style_recon_nce
         self.latent_dim = self.G.latent_dim
+        self.content_image_noaug = content_image_noaug
+        self.output_cons = output_cons
         self.aug = nn.Sequential(
             K.RandomAffine(degrees=(-20,20), scale=(0.8, 1.2), translate=(0.1, 0.1), shear=0.15),
             kornia.geometry.transform.Resize(256+30),
@@ -242,15 +245,27 @@ class ECUTStyle2Loss(Loss):
                 B = self.aug(real_B[[np.random.randint(batch_size)]].expand_as(real_B))
                 reverse_se = self.G.encoder if self.same_style_encoder else self.G.reverse_se
 
-                A_content, A_style = self.G.encode(A)
-                B_style = reverse_se.style_encode(B)
-                aug_A_style = self.G.style_encode(aug_A)
-                aug_B_style = reverse_se.style_encode(aug_B)
-                rand_A_style = torch.randn([batch_size, self.latent_dim]).to(device)
+                if self.content_image_noaug:
+                    A_content = self.G.content_encode(real_A)
+                    A_style = self.G.style_encode(A)
+                    B_style = reverse_se.style_encode(B)
+                    aug_A_style = self.G.style_encode(aug_A)
+                    aug_B_style = reverse_se.style_encode(aug_B)
+                    rand_A_style = torch.randn([batch_size, self.latent_dim]).to(device)
+                else:
+                    A_content, A_style = self.G.encode(A)
+                    B_style = reverse_se.style_encode(B)
+                    aug_A_style = self.G.style_encode(aug_A)
+                    aug_B_style = reverse_se.style_encode(aug_B)
+                    rand_A_style = torch.randn([batch_size, self.latent_dim]).to(device)
 
                 idx = torch.randperm(3 * batch_size)
                 input_A_style = torch.cat([aug_A_style, rand_A_style, aug_B_style], 0)[idx][:batch_size]
                 fake_B = self.G.decode(A_content, input_A_style)
+
+                if self.output_cons:
+                    fake_B_aug = self.aug(fake_B[[np.random.randint(batch_size)]].expand_as(fake_B))
+                    fake_B_aug_style = reverse_se.style_encode(fake_B_aug)
                 
                 # Adversarial loss
                 gen_logits = self.run_D(fake_B, blur_sigma=blur_sigma)
@@ -278,7 +293,7 @@ class ECUTStyle2Loss(Loss):
                     # training_stats.report('Loss/G/identity', loss_Gmain_idt)
 
                 if self.lambda_NCE > 0:
-                    loss_Gmain_NCE = self.calculate_NCE_loss(self.get_nce_features(A), self.get_nce_features(fake_B))
+                    loss_Gmain_NCE = self.calculate_NCE_loss(self.get_nce_features(real_A if self.content_image_noaug else A), self.get_nce_features(fake_B))
                     training_stats.report('Loss/G/NCE', loss_Gmain_NCE)
                     # if self.nce_idt:
                     #     loss_Gmain_NCE_idt = self.calculate_NCE_loss(self.netPre, real_B, fake_idt_B)
@@ -294,6 +309,9 @@ class ECUTStyle2Loss(Loss):
                     training_stats.report('Loss/G/StyleConsistency_B', loss_Gmain_consis_B)
 
                     loss_Gmain = loss_Gmain + (loss_Gmain_consis_A + loss_Gmain_consis_B) * self.lambda_style_consis
+
+                    if self.output_cons:
+                        loss_Gmain = loss_Gmain + fake_B_aug_style.var(0, unbiased=False).sum()
 
                 if self.lambda_style_recon > 0:
                     recon_style = reverse_se.style_encode(fake_B)

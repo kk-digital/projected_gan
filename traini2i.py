@@ -154,6 +154,8 @@ def parse_comma_separated_list(s):
 @click.option('--lambda_style_recon', type=float, default=8.0, show_default=True)
 @click.option('--shuffle_style',   help='shuffle style codes of one batch', is_flag=True)
 @click.option('--normalize_style',   help='normalize style code with p=2', is_flag=True)
+@click.option('--content_image_noaug',   help='', is_flag=True)
+@click.option('--output_cons',   help='', is_flag=True)
 
 # PatchNCE
 @click.option('--nce_layers',       help='feature layers',          type=str,        default=None,                 show_default=True)
@@ -403,6 +405,8 @@ def main(**kwargs):
     c.loss_kwargs.reverse_style_is_norm = opts.reverse_style_is_norm
     c.loss_kwargs.shuffle_style = opts.shuffle_style
     c.loss_kwargs.weight_strategy = opts.weight_strategy
+    c.loss_kwargs.content_image_noaug = opts.content_image_noaug
+    c.loss_kwargs.output_cons = opts.output_cons
     c.use_ema_model = opts.resume_ema
     c.gpuinfo_interval = opts.gpuinfo_interval
     c.sample_image_grid = not opts.dont_sample_grid
