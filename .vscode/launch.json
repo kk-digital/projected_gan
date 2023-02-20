@@ -649,14 +649,19 @@
             "type": "python",
             "request": "launch",
             "program": "gen_images_i2i_multimodal_unique.py",
+            "env": {
+                "PYTHONPATH": "thirdparty/GANsNRoses;thirdparty/imaginaire"
+            },
             "args": [
-                "--network=E:\\00296-ecut_gnr_fastaev8_feat16attn_stylereconNCE0_nnocc-cfdab6-selfie2anime-gpus3-batch24\\network-snapshot.pkl",
+                // "--network=G:\\00296-ecut_gnr_fastaev8_feat16attn_stylereconNCE0_nnocc-cfdab6-selfie2anime-gpus3-batch24\\network-snapshot.pkl",
+                // "--network=C:\\Users\\ldy\\projected_gan\\training-runs\\models_pickle/gansnroses_selfie2anime_ema_121999.pkl",
+                "--network=C:\\Users\\ldy\\projected_gan\\training-runs\\models_pickle/selfie2anime_munit_ema.pkl",
                 // "--network=E:\\data\\fz2022_2\\projected_gan\\training-runs\\00189-ecut_gnr_fastaev6_ngf64_feat16attnx4-a661fa-selfie2anime-gpus1-batch10\\network-snapshot.pkl",
                 // "--network=E:\\data\\fz2022_2\\projected_gan\\training-runs\\00254-ecut_gnr_fastaev8_ngf64_feat16attn-31451d-selfie2anime-gpus1-batch10\\network-snapshot.pkl",
                 //"--network=./training-runs/s2a-mm-network-snapshot.pkl",
                 "--dataroot=./data/selfie2anime",
                 // "--outdir=./out/multimodal_output_fastaev8_stylereconNCE0",
-                "--outdir=E:\\outputux/0296_multimodal_unique_output_fastaev8_nnocc",
+                "--outdir=G:\\outputux/munit_selfie2anime_multioutput_100",
                 "--num_per_image=100",
             ],
             "console": "integratedTerminal",

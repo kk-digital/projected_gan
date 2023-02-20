@@ -108,7 +108,7 @@ class Generator(nn.Module):
 
         return net_G_output
 
-    def inference(self, data, a2b=True, random_style=True):
+    def inference(self, data, a2b=True, random_style=True, styles=None):
         r"""MUNIT inference.
 
         Args:
@@ -134,10 +134,10 @@ class Generator(nn.Module):
 
         content_images = data[input_key]
         content = content_encode(content_images)
-        if random_style:
+        if random_style or styles is not None:
             style_channels = self.autoencoder_a.style_channels
             style = torch.randn(content.size(0), style_channels, 1, 1,
-                                device=torch.device('cuda'))
+                                device=torch.device('cuda')) if styles is None else styles
             file_names = data['key'][input_key]['filename']
         else:
             style_key = 'images_b' if a2b else 'images_a'
