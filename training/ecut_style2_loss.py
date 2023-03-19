@@ -97,7 +97,6 @@ class ECUTStyle2Loss(Loss):
         self.blur_fade_kimg = blur_fade_kimg
         self.criterionIdt = torch.nn.MSELoss()
         self.criterionStyleRecon = losses.ContrastiveNCELoss() if style_recon_nce else torch.nn.MSELoss()
-        self.same_style_encoder = same_style_encoder
         self.style_recon_force_idt = style_recon_force_idt
         self.style_recon_nce = style_recon_nce
         self.latent_dim = self.G.latent_dim
@@ -179,16 +178,6 @@ class ECUTStyle2Loss(Loss):
         self.F.create_mlp(feat)
         self.D.latent_dis = LatDiscriminator(self.latent_dim).to(self.device).requires_grad_(False)
         encoder = reduce(lambda a, b: a or b, map(lambda u: isinstance(self.G, u[0]) and u[1], valid_gen_encoder))
-        if not self.same_style_encoder:
-            if encoder == Ev_gnr:
-                self.G.reverse_se = encoder(self.G.size, 8, 3, 1).to(self.device).requires_grad_(False)
-            else:
-                additional = {}
-                if hasattr(self.G, "variational_style_encoder"):
-                    additional['variational_style_encoder'] = self.G.variational_style_encoder
-                self.G.reverse_se = encoder(
-                    latent_dim=self.G.latent_dim, ngf=self.G.ngf, nc=self.G.nc,
-                    img_resolution=self.G.img_resolution, lite=self.G.lite, **additional).to(self.device).requires_grad_(False)
         self.D.reverse_latent_dis = LatDiscriminator(self.latent_dim).to(self.device).requires_grad_(False)
 
     def calculate_NCE_loss(self, feat_k, feat_q):
@@ -237,11 +226,10 @@ class ECUTStyle2Loss(Loss):
 
             # Gmain: Maximize logits for generated images.
             with torch.autograd.profiler.record_function('Gmain_forward'):
-                aug_A = self.aug(real_A)
                 aug_B = self.aug(real_B)
                 A = self.aug(real_A[[np.random.randint(batch_size)]].expand_as(real_A))
                 B = self.aug(real_B[[np.random.randint(batch_size)]].expand_as(real_B))
-                reverse_se = self.G.encoder if self.same_style_encoder else self.G.reverse_se
+                reverse_se = self.G.encoder
 
                 if self.content_image_noaug:
                     A_content = self.G.content_encode(real_A)
@@ -254,7 +242,7 @@ class ECUTStyle2Loss(Loss):
                     aug_B_style = reverse_se.style_encode(aug_B)
                     rand_B_style = torch.randn([batch_size, self.latent_dim]).to(device)
 
-                idx = torch.randperm(3 * batch_size)
+                idx = torch.randperm(2 * batch_size)
                 input_A_style = torch.cat([rand_B_style, aug_B_style], 0)[idx][:batch_size]
                 fake_B = self.G.decode(A_content, input_A_style)
 
