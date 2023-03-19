@@ -177,8 +177,6 @@ class ECUTStyle2Loss(Loss):
 
         self.F.create_mlp(feat)
         self.D.latent_dis = LatDiscriminator(self.latent_dim).to(self.device).requires_grad_(False)
-        encoder = reduce(lambda a, b: a or b, map(lambda u: isinstance(self.G, u[0]) and u[1], valid_gen_encoder))
-        self.D.reverse_latent_dis = LatDiscriminator(self.latent_dim).to(self.device).requires_grad_(False)
 
     def calculate_NCE_loss(self, feat_k, feat_q):
         n_layers = len(self.nce_layers)
@@ -257,7 +255,7 @@ class ECUTStyle2Loss(Loss):
                 training_stats.report('Loss/scores/fake', gen_logits)
                 training_stats.report('Loss/signs/fake', gen_logits.sign())
                 training_stats.report('Loss/G/gan', loss_Gmain_GAN)
-                gen_style_logits_B = torch.cat(self.D.reverse_latent_dis(aug_B_style), dim=1)
+                gen_style_logits_B = torch.cat(self.D.latent_dis(aug_B_style), dim=1)
                 loss_Gmain_GAN_style_B = (-gen_style_logits_B).mean()
                 loss_Gmain = loss_Gmain + loss_Gmain_GAN_style_B * self.lambda_style_GAN
                 training_stats.report('Loss/G/gan_style_B', loss_Gmain_GAN_style_B)
@@ -310,7 +308,7 @@ class ECUTStyle2Loss(Loss):
                 gen_logits = self.run_D(self.fake_B, blur_sigma=blur_sigma)
                 loss_Dgen = (F.relu(torch.ones_like(gen_logits) + gen_logits)).mean()
 
-                style_gen_logits_B = torch.cat(self.D.reverse_latent_dis(self.aug_B_style), dim=1)
+                style_gen_logits_B = torch.cat(self.D.latent_dis(self.aug_B_style), dim=1)
                 loss_Dgen_style = (F.relu(torch.ones_like(style_gen_logits_B) + style_gen_logits_B)).mean()
 
                 # Logging
