@@ -69,7 +69,7 @@ class ECUTStyle2Loss(Loss):
                  style_recon_nce: bool = False, style_recon_force_idt: bool = False, feature_attn_layers: int=0, patch_max_shape: Tuple[int,int]=(256,256),
                  same_style_encoder: bool = False, normalize_transformer_out: bool = True, sim_pnorm: float = 0,
                  lambda_style_GAN: float=2.0, lambda_GAN: float=1.0, lambda_NCE: float=1.0, lambda_identity: float = 0,
-                 lambda_r1: float = 0, d_reg_every: int = 16, reverse_style_is_norm: bool=False,
+                 lambda_r1: float = 0, d_reg_every: int = 16, reverse_style_is_norm: bool=True,
                  lambda_style_consis: float=50.0, lambda_style_recon: float = 5,
                  content_image_noaug: bool = False, output_cons: bool = False,
                  blur_init_sigma=0, blur_fade_kimg=0, **kwargs):
@@ -93,7 +93,6 @@ class ECUTStyle2Loss(Loss):
         self.lambda_style_recon = lambda_style_recon
         self.lambda_r1 = lambda_r1
         self.d_reg_every = d_reg_every
-        self.reverse_style_is_norm = reverse_style_is_norm
         self.blur_init_sigma = blur_init_sigma
         self.blur_fade_kimg = blur_fade_kimg
         self.criterionIdt = torch.nn.MSELoss()
@@ -190,8 +189,7 @@ class ECUTStyle2Loss(Loss):
                 self.G.reverse_se = encoder(
                     latent_dim=self.G.latent_dim, ngf=self.G.ngf, nc=self.G.nc,
                     img_resolution=self.G.img_resolution, lite=self.G.lite, **additional).to(self.device).requires_grad_(False)
-        if self.reverse_style_is_norm:
-            self.D.reverse_latent_dis = LatDiscriminator(self.latent_dim).to(self.device).requires_grad_(False)
+        self.D.reverse_latent_dis = LatDiscriminator(self.latent_dim).to(self.device).requires_grad_(False)
 
     def calculate_NCE_loss(self, feat_k, feat_q):
         n_layers = len(self.nce_layers)
@@ -247,20 +245,17 @@ class ECUTStyle2Loss(Loss):
 
                 if self.content_image_noaug:
                     A_content = self.G.content_encode(real_A)
-                    A_style = self.G.style_encode(A)
                     B_style = reverse_se.style_encode(B)
-                    aug_A_style = self.G.style_encode(aug_A)
                     aug_B_style = reverse_se.style_encode(aug_B)
-                    rand_A_style = torch.randn([batch_size, self.latent_dim]).to(device)
+                    rand_B_style = torch.randn([batch_size, self.latent_dim]).to(device)
                 else:
-                    A_content, A_style = self.G.encode(A)
+                    A_content = self.G.content_encode(A)
                     B_style = reverse_se.style_encode(B)
-                    aug_A_style = self.G.style_encode(aug_A)
                     aug_B_style = reverse_se.style_encode(aug_B)
-                    rand_A_style = torch.randn([batch_size, self.latent_dim]).to(device)
+                    rand_B_style = torch.randn([batch_size, self.latent_dim]).to(device)
 
                 idx = torch.randperm(3 * batch_size)
-                input_A_style = torch.cat([aug_A_style, rand_A_style, aug_B_style], 0)[idx][:batch_size]
+                input_A_style = torch.cat([rand_B_style, aug_B_style], 0)[idx][:batch_size]
                 fake_B = self.G.decode(A_content, input_A_style)
 
                 if self.output_cons:
@@ -274,17 +269,11 @@ class ECUTStyle2Loss(Loss):
                 training_stats.report('Loss/scores/fake', gen_logits)
                 training_stats.report('Loss/signs/fake', gen_logits.sign())
                 training_stats.report('Loss/G/gan', loss_Gmain_GAN)
-                gen_style_logits = torch.cat(self.D.latent_dis(aug_A_style), dim=1)
-                loss_Gmain_GAN_style = (-gen_style_logits).mean()
-                loss_Gmain = loss_Gmain + loss_Gmain_GAN_style * self.lambda_style_GAN
-                training_stats.report('Loss/G/gan_style', loss_Gmain_GAN_style)
-                if self.reverse_style_is_norm:
-                    aug_B_style = reverse_se.style_encode(aug_B)
-                    gen_style_logits_B = torch.cat(self.D.reverse_latent_dis(aug_B_style), dim=1)
-                    loss_Gmain_GAN_style_B = (-gen_style_logits_B).mean()
-                    loss_Gmain = loss_Gmain + loss_Gmain_GAN_style_B * self.lambda_style_GAN
-                    training_stats.report('Loss/G/gan_style_B', loss_Gmain_GAN_style_B)
-                    self.aug_B_style = aug_B_style.detach()
+                gen_style_logits_B = torch.cat(self.D.reverse_latent_dis(aug_B_style), dim=1)
+                loss_Gmain_GAN_style_B = (-gen_style_logits_B).mean()
+                loss_Gmain = loss_Gmain + loss_Gmain_GAN_style_B * self.lambda_style_GAN
+                training_stats.report('Loss/G/gan_style_B', loss_Gmain_GAN_style_B)
+                self.aug_B_style = aug_B_style.detach()
 
                 if self.lambda_identity > 0:
                     pass
@@ -302,13 +291,10 @@ class ECUTStyle2Loss(Loss):
                     loss_Gmain = loss_Gmain + loss_Gmain_NCE * self.lambda_NCE
                 
                 if self.lambda_style_consis > 0:
-                    loss_Gmain_consis_A = A_style.var(0, unbiased=False).sum()
-                    training_stats.report('Loss/G/StyleConsistency_A', loss_Gmain_consis_A)
-
                     loss_Gmain_consis_B = B_style.var(0, unbiased=False).sum()
                     training_stats.report('Loss/G/StyleConsistency_B', loss_Gmain_consis_B)
 
-                    loss_Gmain = loss_Gmain + (loss_Gmain_consis_A + loss_Gmain_consis_B) * self.lambda_style_consis
+                    loss_Gmain = loss_Gmain + (loss_Gmain_consis_B) * self.lambda_style_consis
 
                     if self.output_cons:
                         loss_Gmain = loss_Gmain + fake_B_aug_style.var(0, unbiased=False).sum()
@@ -323,8 +309,7 @@ class ECUTStyle2Loss(Loss):
 
                 self.aug_B = aug_B.detach()
                 self.fake_B = fake_B.detach()
-                self.rand_A_style = rand_A_style
-                self.aug_A_style =aug_A_style.detach()
+                self.rand_B_style = rand_B_style
                 training_stats.report('Loss/G/loss', loss_Gmain)
 
             with torch.autograd.profiler.record_function('Gmain_backward'):
@@ -337,12 +322,8 @@ class ECUTStyle2Loss(Loss):
                 gen_logits = self.run_D(self.fake_B, blur_sigma=blur_sigma)
                 loss_Dgen = (F.relu(torch.ones_like(gen_logits) + gen_logits)).mean()
 
-                style_gen_logits = torch.cat(self.D.latent_dis(self.aug_A_style), dim=1)
-                loss_Dgen_style = (F.relu(torch.ones_like(style_gen_logits) + style_gen_logits)).mean()
-                if self.reverse_style_is_norm:
-                    style_gen_logits_B = torch.cat(self.D.reverse_latent_dis(self.aug_B_style), dim=1)
-                    loss_Dgen_style_B = (F.relu(torch.ones_like(style_gen_logits_B) + style_gen_logits_B)).mean()
-                    loss_Dgen_style += loss_Dgen_style_B
+                style_gen_logits_B = torch.cat(self.D.reverse_latent_dis(self.aug_B_style), dim=1)
+                loss_Dgen_style = (F.relu(torch.ones_like(style_gen_logits_B) + style_gen_logits_B)).mean()
 
                 # Logging
                 training_stats.report('Loss/scores/fake', gen_logits)
@@ -354,20 +335,15 @@ class ECUTStyle2Loss(Loss):
 
             if n_iter % self.d_reg_every == 0 and self.lambda_r1 > 0:
                 self.aug_B.requires_grad = True
-                self.rand_A_style.requires_grad = True
+                self.rand_B_style.requires_grad = True
 
             # Dmain: Maximize logits for real images.
             with torch.autograd.profiler.record_function('Dreal_forward'):
                 real_logits = self.run_D(self.aug_B, blur_sigma=blur_sigma)
                 loss_Dreal = (F.relu(torch.ones_like(real_logits) - real_logits)).mean()
 
-                style_real_logits = torch.cat(self.D.latent_dis(self.rand_A_style), dim=1)
+                style_real_logits = torch.cat(self.D.latent_dis(self.rand_B_style), dim=1)
                 loss_Dreal_style = (F.relu(torch.ones_like(style_real_logits) - style_real_logits)).mean()
-                if self.reverse_style_is_norm:
-                    rand_B_style = torch.randn([batch_size, self.latent_dim]).to(device).requires_grad_()
-                    style_real_logits_B = torch.cat(self.D.reverse_latent_dis(rand_B_style), dim=1)
-                    loss_Dreal_style_B = (F.relu(torch.ones_like(style_real_logits_B) - style_real_logits_B)).mean()
-                    loss_Dreal_style += loss_Dreal_style_B
 
                 # Logging
                 training_stats.report('Loss/scores/real', real_logits)
@@ -377,10 +353,7 @@ class ECUTStyle2Loss(Loss):
             
             if n_iter % self.d_reg_every == 0 and self.lambda_r1 > 0:
                 r1_A_loss = d_r1_loss(real_logits, self.aug_B)
-                r1_A_s_loss = d_r1_loss(style_real_logits, self.rand_A_style)
-                if self.reverse_style_is_norm:
-                    r1_B_s_loss = d_r1_loss(style_real_logits_B, rand_B_style)
-                    r1_A_s_loss += r1_B_s_loss
+                r1_A_s_loss = d_r1_loss(style_real_logits, self.rand_B_style)
                 training_stats.report('Loss/D/r1_Aimg', r1_A_loss)
                 training_stats.report('Loss/D/r1_Astyle', r1_A_s_loss)
                 loss_Dreal += r1_A_loss * self.lambda_r1 * self.d_reg_every

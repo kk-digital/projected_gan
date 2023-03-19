@@ -430,7 +430,7 @@ class Generator(nn.Module):
         else:
             content, z = self.encode(img)
 
-        if self.variational_style_encoder:
+        if hasattr(self, "variational_style_encoder") and self.variational_style_encoder:
             z_mu = z[:,:z.size(1)//2]
             z_logvar = z[:,z.size(1)//2:]
             z = gaussian_reparameterization(z_mu, z_logvar)
