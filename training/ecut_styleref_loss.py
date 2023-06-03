@@ -245,7 +245,7 @@ class ECUTStyleRefLoss(Loss):
 
                 if self.lambda_style_recon > 0:
                     recon_style = reverse_se.style_encode(fake_B)
-                    loss_Gmain_style_recon = self.criterionStyleRecon(B_style, latent_bank, recon_style)
+                    loss_Gmain_style_recon = self.criterionStyleRecon(recon_style, latent_bank, B_style)
                     latent_bank = torch.cat([latent_bank[recon_style.size(0):], recon_style.detach()], dim=0)
                     training_stats.report('Loss/G/StyleReconstruction', loss_Gmain_style_recon)
                     loss_Gmain = loss_Gmain + loss_Gmain_style_recon * self.lambda_style_recon
