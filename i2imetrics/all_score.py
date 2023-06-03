@@ -8,7 +8,7 @@ from .fid_score import calculate_frechet_distance, calculate_frechet_distance_to
 from .kid_score import polynomial_mmd_averages
 from .models.inception import InceptionV3
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
-from .fid_is_infinity.score_infinity import calculate_FID_infinity_path, calculate_IS_infinity_path
+# from .fid_is_infinity.score_infinity import calculate_FID_infinity_path, calculate_IS_infinity_path
 import numpy as np
 import os
 
@@ -96,13 +96,15 @@ def calculate_scores_given_paths(paths, batch_size, device, dims, use_fid_incept
     if inf_version:
         try:
             # IS_inf
-            store['is_inf'] = calculate_IS_infinity_path(paths[j+1], batch_size=batch_size, min_fake=50)
+            pass
+            # store['is_inf'] = calculate_IS_infinity_path(paths[j+1], batch_size=batch_size, min_fake=50)
         except:
             pass
 
         try:
             # FID_inf
-            store['fid_inf'] = calculate_FID_infinity_path(real_images_path, paths[j+1], batch_size=batch_size, min_fake=50)
+            pass
+            # store['fid_inf'] = calculate_FID_infinity_path(real_images_path, paths[j+1], batch_size=batch_size, min_fake=50)
         except:
             pass
 
