@@ -435,6 +435,41 @@ class ContrastiveNCELoss(nn.Module):
         return self.criterion(logits, labels)
 
 
+class ContrastiveNCELoss2(nn.Module):
+    def __init__(self, temperature: float = 0.07):
+        super().__init__()
+        self.temperature = temperature
+        self.criterion = torch.nn.CrossEntropyLoss()
+
+    def forward(self, z: torch.Tensor, z_minus: torch.Tensor, z_plus: torch.Tensor):
+        assert len(z.shape) == 2
+        assert len(z_minus.shape) == 2
+        assert len(z_plus.shape) == 2
+        assert z.size(0) == z_plus.size(0)
+        assert z.size(1) == z_minus.size(1)
+        assert z.size(1) == z_plus.size(1)
+        device = z.device
+
+        labels = torch.arange(z.size(0))
+        labels = (labels.unsqueeze(0) == labels.unsqueeze(1)).float()
+        labels = labels.to(device)
+
+        z       = F.normalize(z, dim=1)
+        z_plus  = F.normalize(z_plus, dim=1)
+        z_minus = F.normalize(z_minus, dim=1)
+
+        s1_matrix = torch.matmul(z, z_plus.T)
+        s2_matrix = torch.matmul(z, z_minus.T)
+
+        mask = torch.eye(labels.shape[0], dtype=torch.bool).to(device)
+        positives = s1_matrix[mask].view(z.size(0), -1)
+        negs_k1 = s1_matrix[~mask].view(z.size(0), -1)
+        logits = torch.cat([positives, negs_k1, s2_matrix], dim=1)
+        logits = logits / self.temperature
+        labels = torch.zeros(logits.shape[0], dtype=torch.long).to(device)
+        return self.criterion(logits, labels)
+
+
 class VGG16(nn.Module):
     def __init__(self):
         super(VGG16, self).__init__()

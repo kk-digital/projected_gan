@@ -347,13 +347,30 @@ def training_loop(
         shuffle(imgs_A_idx)
         imgs_A_idx = imgs_A_idx[:5]
         imgs_A = imagesA[imgs_A_idx]
-        images_A = torch.from_numpy(imgs_A).to(device).split(batch_gpu)
-        images = torch.cat([G_ema_gen(img).cpu() for img in images_A]).numpy()
+        imgs_B_idx = list(range(len(imagesB)))
+        shuffle(imgs_B_idx)
+        imgs_B_idx = imgs_B_idx[:5]
+        imgs_B = imagesB[imgs_B_idx]
         buf = io.BytesIO()
-        save_image_grid(imgs_A, images, buf, drange=[-1,1], grid_size=(5,1))
-        filename = f'tick_{tick}.png'
-        logger.sendBlobFile(buf, filename, f"/validation_images/{desc}/{filename}", f"{desc}/ImageSamplePerTick")
-        del images_A
+        if loss_kwargs['class_name'] == 'training.ecut_styleref_loss.ECUTStyleRefLoss':
+            images_A = torch.from_numpy(imgs_A).to(device)
+            images_B = torch.from_numpy(imgs_B).to(device)
+            content = G_ema.content_encode(images_A)
+            style = G_ema.style_encode(images_B)
+            images = G_ema.decode(content, style).cpu().numpy()
+            buf2 = io.BytesIO()
+            save_image_grid(imgs_A, images, buf, drange=[-1,1], grid_size=(5,1))
+            save_image_grid(imgs_B, images, buf2, drange=[-1,1], grid_size=(5,1))
+            filename = f'tick_{tick}.png'
+            logger.sendBlobFile(buf,  f"a_{filename}", f"/validation_images/{desc}/a_{filename}", f"{desc}/ImageSamplePerTick")
+            logger.sendBlobFile(buf2, f"b_{filename}", f"/validation_images/{desc}/b_{filename}", f"{desc}/ImageSamplePerTick")
+        else:
+            images_A = torch.from_numpy(imgs_A).to(device).split(batch_gpu)
+            images = torch.cat([G_ema_gen(img).cpu() for img in images_A]).numpy()
+            save_image_grid(imgs_A, images, buf, drange=[-1,1], grid_size=(5,1))
+            filename = f'tick_{tick}.png'
+            logger.sendBlobFile(buf, filename, f"/validation_images/{desc}/{filename}", f"{desc}/ImageSamplePerTick")
+            del images_A
 
     # Initialize logs.
     if rank == 0:
