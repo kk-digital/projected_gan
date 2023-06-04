@@ -61,8 +61,8 @@ class ECUTStyleRefLoss(Loss):
                  style_recon_nce: bool = False, style_recon_force_idt: bool = False, feature_attn_layers: int=0, patch_max_shape: Tuple[int,int]=(256,256),
                  normalize_transformer_out: bool = True, sim_pnorm: float = 0,
                  lambda_style_GAN: float=2.0, lambda_GAN: float=1.0, lambda_NCE: float=1.0, lambda_identity: float = 0,
-                 lambda_style_consis: float=50.0, lambda_style_recon: float = 5,
-                 output_cons: bool = False, latent_bank_size: int = 256,
+                 lambda_style_consis: float=20.0, lambda_style_recon: float = 15,
+                 output_cons: bool = False, latent_bank_size: int = 2048,
                  blur_init_sigma=0, blur_fade_kimg=0, **kwargs):
         super().__init__()
         self.device = device

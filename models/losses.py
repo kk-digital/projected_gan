@@ -450,10 +450,6 @@ class ContrastiveNCELoss2(nn.Module):
         assert z.size(1) == z_plus.size(1)
         device = z.device
 
-        labels = torch.arange(z.size(0))
-        labels = (labels.unsqueeze(0) == labels.unsqueeze(1)).float()
-        labels = labels.to(device)
-
         z       = F.normalize(z, dim=1)
         z_plus  = F.normalize(z_plus, dim=1)
         z_minus = F.normalize(z_minus, dim=1)
@@ -461,7 +457,7 @@ class ContrastiveNCELoss2(nn.Module):
         s1_matrix = torch.matmul(z, z_plus.T)
         s2_matrix = torch.matmul(z, z_minus.T)
 
-        mask = torch.eye(labels.shape[0], dtype=torch.bool).to(device)
+        mask = torch.eye(z.size(0), dtype=torch.bool).to(device)
         positives = s1_matrix[mask].view(z.size(0), -1)
         negs_k1 = s1_matrix[~mask].view(z.size(0), -1)
         logits = torch.cat([positives, negs_k1, s2_matrix], dim=1)
