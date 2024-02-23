@@ -29,8 +29,9 @@ If you find our code or paper useful, please cite
 ## Requirements ##
 - 64-bit Python 3.8 and PyTorch 1.9.0 (or later). See https://pytorch.org for PyTorch install instructions.
 - Use the following commands with Miniconda3 to create and activate your PG Python environment:
-  - ```conda env create -f environment.yml```
+  - ```conda env create -n pg -f environment.yml```
   - ```conda activate pg```
+  - ```pip install -r requirements.txt```
 - The StyleGAN2 generator relies on custom CUDA kernels, which are compiled on the fly. Hence you need:
   - CUDA toolkit 11.1 or later.
   - GCC 7 or later compilers. Recommended GCC version depends on CUDA version, see for example CUDA 11.4 system requirements.
