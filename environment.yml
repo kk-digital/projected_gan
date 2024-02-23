@@ -2,8 +2,8 @@ name: base
 channels:
   - https://mirrors.tuna.tsinghua.edu.cn/anaconda/cloud/pytorch
   - https://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/main
-  - https://mirrors.tuna.tsinghua.edu.cn/anaconda/cloud/msys2/01
-  - https://mirrors.tuna.tsinghua.edu.cn/anaconda/cloud/pytorch/01~
+  #- https://mirrors.tuna.tsinghua.edu.cn/anaconda/cloud/msys2/01
+  #- https://mirrors.tuna.tsinghua.edu.cn/anaconda/cloud/pytorch/01~
   - https://mirrors.tuna.tsinghua.edu.cn/anaconda/cloud/conda-forge/
   - https://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/main/
   - https://mirrors.tuna.tsinghua.edu.cn/anaconda/cloud/pytorch/
@@ -11,13 +11,13 @@ channels:
   - https://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/pro/
   - http://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/r
   - http://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/pro/
-  - http://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/msys2/
+  #  - http://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/msys2/
   - http://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/main/
   - http://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/free/
   - http://mirrors.tuna.tsinghua.edu.cn/anaconda/cloud/pytorch/
   - https://mirrors.ustc.edu.cn/anaconda/cloud/menpo/
   - https://mirrors.ustc.edu.cn/anaconda/cloud/bioconda/
-  - https://mirrors.ustc.edu.cn/anaconda/cloud/msys2/
+  #- https://mirrors.ustc.edu.cn/anaconda/cloud/msys2/
   - https://mirrors.ustc.edu.cn/anaconda/cloud/conda-forge/
   - https://mirrors.ustc.edu.cn/anaconda/pkgs/free/
   - https://mirrors.ustc.edu.cn/anaconda/pkgs/main/
